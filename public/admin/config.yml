@@ -2,7 +2,7 @@ backend:
   name: github
   repo: spankyno/mi-blog
   branch: main
-  base_url: https://aitorsanchez-cms.netlify.app
+  base_url: https://aitorsanchez-oauth.asanchezgu.workers.dev
 
 media_folder: public/images
 public_folder: /images

@@ -14,10 +14,12 @@
   },
   "dependencies": {
     "@astrojs/cloudflare": "^13.1.10",
-    "astro": "^6.1.8",
-    "wrangler": "^4.84.0"
+    "astro": "^6.1.8"
   },
   "overrides": {
     "vite": "^7"
+  },
+  "devDependencies": {
+    "wrangler": "^4.84.0"
   }
 }
