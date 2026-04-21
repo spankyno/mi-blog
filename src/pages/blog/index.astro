@@ -1,0 +1,61 @@
+---
+import Base from '../../layouts/Base.astro';
+import Header from '../../components/Header.astro';
+import Footer from '../../components/Footer.astro';
+import { getCollection } from 'astro:content';
+
+const posts = (await getCollection('blog', ({ data }) => !data.draft))
+  .sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf());
+---
+<Base title="Blog — Aitor Sánchez">
+  <Header />
+  <main>
+    <h1>Blog</h1>
+    <ul class="list">
+      {posts.map(post => (
+        <li>
+          <a href={`/blog/${post.id}`} class="post-link">
+            <div>
+              <span class="post-title">{post.data.title}</span>
+              <span class="post-desc">{post.data.description}</span>
+            </div>
+            <span class="post-date">{post.data.pubDate.toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+          </a>
+        </li>
+      ))}
+      {posts.length === 0 && <li class="empty">Aún no hay posts. ¡Vuelve pronto!</li>}
+    </ul>
+  </main>
+  <Footer />
+</Base>
+
+<style>
+  main {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 0 1.5rem;
+  }
+  h1 {
+    font-family: var(--font-display);
+    font-size: clamp(2rem, 5vw, 3rem);
+    font-weight: 400;
+    letter-spacing: -0.03em;
+    margin: 3rem 0 2.5rem;
+  }
+  .list { list-style: none; }
+  .list li { border-top: 1px solid var(--color-border); }
+  .list li:last-child { border-bottom: 1px solid var(--color-border); }
+  .post-link {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.25rem 0;
+    transition: opacity 0.2s;
+  }
+  .post-link:hover { opacity: 0.6; }
+  .post-title { display: block; font-weight: 400; margin-bottom: 0.2rem; }
+  .post-desc { display: block; font-size: 0.875rem; color: var(--color-muted); }
+  .post-date { font-size: 0.85rem; color: var(--color-muted); white-space: nowrap; }
+  .empty { padding: 1.25rem 0; color: var(--color-muted); border-top: 1px solid var(--color-border); }
+</style>

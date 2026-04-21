@@ -1,0 +1,38 @@
+---
+import Base from '../layouts/Base.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+---
+<Base title="Contacto — Aitor Sánchez">
+  <Header />
+  <main>
+    <h1>Contacto</h1>
+    <p class="intro">¿Tienes un proyecto en mente o simplemente quieres saludar? Escríbeme.</p>
+    <a href="mailto:tu@email.com" class="email">tu@email.com</a>
+  </main>
+  <Footer />
+</Base>
+
+<style>
+  main {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 0 1.5rem;
+  }
+  h1 {
+    font-family: var(--font-display);
+    font-size: clamp(2rem, 5vw, 3rem);
+    font-weight: 400;
+    letter-spacing: -0.03em;
+    margin: 3rem 0 1.5rem;
+  }
+  .intro { color: var(--color-muted); max-width: 48ch; margin-bottom: 2rem; }
+  .email {
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+    transition: opacity 0.2s;
+  }
+  .email:hover { opacity: 0.6; }
+</style>

@@ -1,17 +1,124 @@
 ---
+import Base from '../layouts/Base.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import { getCollection } from 'astro:content';
 
+const posts = (await getCollection('blog', ({ data }) => !data.draft))
+  .sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf())
+  .slice(0, 3);
+
+const proyectos = (await getCollection('portfolio'))
+  .sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf())
+  .slice(0, 3);
 ---
+<Base title="Aitor Sánchez">
+  <Header />
+  <main>
+    <section class="hero">
+      <p class="eyebrow">Hola, soy</p>
+      <h1>Aitor Sánchez</h1>
+      <p class="bio">Diseñador y desarrollador. Creo cosas con intención.</p>
+    </section>
 
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
-	</head>
-	<body>
-		<h1>Astro</h1>
-	</body>
-</html>
+    <section class="section">
+      <div class="section-header">
+        <h2>Últimas entradas</h2>
+        <a href="/blog">Ver todas →</a>
+      </div>
+      <ul class="list">
+        {posts.map(post => (
+          <li>
+            <a href={`/blog/${post.id}`} class="post-link">
+              <span class="post-title">{post.data.title}</span>
+              <span class="post-date">{post.data.pubDate.toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+            </a>
+          </li>
+        ))}
+        {posts.length === 0 && <li class="empty">Próximamente…</li>}
+      </ul>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <h2>Portfolio</h2>
+        <a href="/portfolio">Ver todo →</a>
+      </div>
+      <ul class="list">
+        {proyectos.map(p => (
+          <li>
+            <a href={`/portfolio/${p.id}`} class="post-link">
+              <span class="post-title">{p.data.title}</span>
+              <span class="post-date">{p.data.description}</span>
+            </a>
+          </li>
+        ))}
+        {proyectos.length === 0 && <li class="empty">Próximamente…</li>}
+      </ul>
+    </section>
+  </main>
+  <Footer />
+</Base>
+
+<style>
+  main {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 0 1.5rem;
+  }
+  .hero {
+    padding: 5rem 0 4rem;
+    border-bottom: 1px solid var(--color-border);
+    margin-bottom: 4rem;
+  }
+  .eyebrow {
+    font-size: 0.9rem;
+    color: var(--color-muted);
+    margin-bottom: 0.5rem;
+  }
+  h1 {
+    font-family: var(--font-display);
+    font-size: clamp(2.5rem, 6vw, 4rem);
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+    margin-bottom: 1rem;
+  }
+  .bio {
+    font-size: 1.15rem;
+    color: var(--color-muted);
+    max-width: 42ch;
+  }
+  .section { margin-bottom: 4rem; }
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 1.5rem;
+  }
+  .section-header h2 {
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    font-weight: 400;
+  }
+  .section-header a {
+    font-size: 0.875rem;
+    color: var(--color-muted);
+    transition: color 0.2s;
+  }
+  .section-header a:hover { color: var(--color-text); }
+  .list { list-style: none; }
+  .list li { border-top: 1px solid var(--color-border); }
+  .list li:last-child { border-bottom: 1px solid var(--color-border); }
+  .post-link {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+    padding: 1rem 0;
+    transition: opacity 0.2s;
+  }
+  .post-link:hover { opacity: 0.6; }
+  .post-title { font-weight: 400; }
+  .post-date { font-size: 0.85rem; color: var(--color-muted); white-space: nowrap; }
+  .empty { padding: 1rem 0; color: var(--color-muted); font-size: 0.9rem; border-top: 1px solid var(--color-border); }
+</style>

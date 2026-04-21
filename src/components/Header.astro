@@ -1,0 +1,58 @@
+---
+const nav = [
+  { label: "Blog", href: "/blog" },
+  { label: "Portfolio", href: "/portfolio" },
+  { label: "Contacto", href: "/contacto" },
+];
+const current = Astro.url.pathname;
+---
+<header>
+  <nav>
+    <a href="/" class="logo">AS</a>
+    <ul>
+      {nav.map(({ label, href }) => (
+        <li>
+          <a href={href} class={current.startsWith(href) ? "active" : ""}>{label}</a>
+        </li>
+      ))}
+    </ul>
+  </nav>
+</header>
+
+<style>
+  header {
+    position: sticky;
+    top: 0;
+    background: #fafaf8ee;
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--color-border);
+    z-index: 100;
+  }
+  nav {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .logo {
+    font-family: var(--font-display);
+    font-size: 1.25rem;
+    letter-spacing: -0.02em;
+  }
+  ul {
+    list-style: none;
+    display: flex;
+    gap: 2rem;
+  }
+  ul a {
+    font-size: 0.9rem;
+    font-weight: 400;
+    color: var(--color-muted);
+    transition: color 0.2s;
+  }
+  ul a:hover, ul a.active {
+    color: var(--color-text);
+  }
+</style>
