@@ -1,8 +1,8 @@
 ---
 const nav = [
   { label: "Blog", href: "/blog" },
-  { label: "Portfolio", href: "/portfolio" },
-  { label: "Contacto", href: "/contacto" },
+  { label: "Portfolio", href: "https://aitorhub.vercel.app/", external: true },
+  { label: "Contacto", href: "https://aitor-blog-contacto.vercel.app/", external: true },
 ];
 const current = Astro.url.pathname;
 ---
@@ -10,9 +10,14 @@ const current = Astro.url.pathname;
   <nav>
     <a href="/" class="logo">AS</a>
     <ul>
-      {nav.map(({ label, href }) => (
+      {nav.map(({ label, href, external }) => (
         <li>
-          <a href={href} class={current.startsWith(href) ? "active" : ""}>{label}</a>
+          <a 
+            href={href} 
+            class={!external && current.startsWith(href) ? "active" : ""}
+            target={external ? "_blank" : undefined}
+            rel={external ? "noopener noreferrer" : undefined}
+          >{label}</a>
         </li>
       ))}
     </ul>
