@@ -3,5 +3,8 @@ import cloudflare from '@astrojs/cloudflare';
 
 export default defineConfig({
   output: 'server',
-  adapter: cloudflare(),
+  adapter: cloudflare({
+    imageService: 'passthrough',
+    sessionKVBindingName: undefined,
+  }),
 });
