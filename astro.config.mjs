@@ -8,6 +8,8 @@ export default defineConfig({
     platformProxy: {
       enabled: true,
     },
-    sessionKVBindingName: undefined,
   }),
+  experimental: {
+    session: true,
+  },
 });
