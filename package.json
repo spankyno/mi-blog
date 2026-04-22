@@ -9,10 +9,11 @@
     "dev": "astro dev --port 3000 --host 0.0.0.0",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "generate-types": "wrangler types"
   },
   "dependencies": {
-    "@astrojs/cloudflare": "12.1.0",
+    "@astrojs/cloudflare": "^13.0.0",
     "astro": "5.4.0"
   },
   "devDependencies": {
