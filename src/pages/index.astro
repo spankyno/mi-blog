@@ -2,15 +2,23 @@
 import Base from '../layouts/Base.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
-import { getCollection } from 'astro:content';
 
-const posts = (await getCollection('blog', ({ data }) => !data.draft))
-  .sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf())
-  .slice(0, 3);
+const db = Astro.locals.runtime?.env?.DB;
 
-const proyectos = (await getCollection('portfolio'))
-  .sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf())
-  .slice(0, 3);
+let posts = [];
+let proyectos = [];
+
+if (db) {
+  const postsResult = await db.prepare(
+    `SELECT slug, title, description, pub_date FROM posts WHERE draft = 0 ORDER BY pub_date DESC LIMIT 3`
+  ).all();
+  posts = postsResult.results ?? [];
+
+  const portfolioResult = await db.prepare(
+    `SELECT slug, title, description FROM portfolio ORDER BY pub_date DESC LIMIT 3`
+  ).all();
+  proyectos = portfolioResult.results ?? [];
+}
 ---
 <Base title="Aitor Sánchez">
   <Header />
@@ -27,11 +35,11 @@ const proyectos = (await getCollection('portfolio'))
         <a href="/blog">Ver todas →</a>
       </div>
       <ul class="list">
-        {posts.map(post => (
+        {posts.map((post: any) => (
           <li>
-            <a href={`/blog/${post.id}`} class="post-link">
-              <span class="post-title">{post.data.title}</span>
-              <span class="post-date">{post.data.pubDate.toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+            <a href={`/blog/${post.slug}`} class="post-link">
+              <span class="post-title">{post.title}</span>
+              <span class="post-date">{new Date(post.pub_date).toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
             </a>
           </li>
         ))}
@@ -45,11 +53,11 @@ const proyectos = (await getCollection('portfolio'))
         <a href="https://aitorhub.vercel.app/" target="_blank" rel="noopener">Ver todo →</a>
       </div>
       <ul class="list">
-        {proyectos.map(p => (
+        {proyectos.map((p: any) => (
           <li>
-            <a href={`/portfolio/${p.id}`} class="post-link">
-              <span class="post-title">{p.data.title}</span>
-              <span class="post-date">{p.data.description}</span>
+            <a href={`/portfolio/${p.slug}`} class="post-link">
+              <span class="post-title">{p.title}</span>
+              <span class="post-date">{p.description}</span>
             </a>
           </li>
         ))}
@@ -66,9 +74,7 @@ const proyectos = (await getCollection('portfolio'))
     margin: 0 auto;
     padding: 0 1.5rem;
   }
-  .hero {
-    margin-bottom: 4rem;
-  }
+  .hero { margin-bottom: 4rem; }
   .hero-cover {
     width: calc(100% + 3rem);
     margin-left: -1.5rem;
