@@ -1,0 +1,177 @@
+---
+import Base from '../../../../layouts/Base.astro';
+
+const { id } = Astro.params;
+const db = Astro.locals.runtime?.env?.DB;
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+
+  const action = form.get('action') as string;
+
+  if (action === 'delete') {
+    await db.prepare(`DELETE FROM portfolio WHERE id = ?`).bind(id).run();
+    return Astro.redirect('/admin');
+  }
+
+  const title = form.get('title') as string;
+  const slug = form.get('slug') as string;
+  const description = form.get('description') as string;
+  const content = form.get('content') as string;
+  const image = form.get('image') as string;
+  const url = form.get('url') as string;
+  const tags = form.get('tags') as string;
+  const pub_date = form.get('pub_date') as string;
+
+  const tagsJson = JSON.stringify(tags.split(',').map((t: string) => t.trim()).filter(Boolean));
+
+  await db.prepare(
+    `UPDATE portfolio SET slug=?, title=?, description=?, content=?, image=?, url=?, tags=?, pub_date=?, updated_at=datetime('now') WHERE id=?`
+  ).bind(slug, title, description, content, image, url, tagsJson, pub_date, id).run();
+
+  return Astro.redirect('/admin');
+}
+
+const proyecto = await db.prepare(`SELECT * FROM portfolio WHERE id = ?`).bind(id).first();
+if (!proyecto) return Astro.redirect('/admin');
+
+const tags = JSON.parse(proyecto.tags || '[]').join(', ');
+---
+<Base title={`Editar — ${proyecto.title}`}>
+  <main>
+    <header class="topbar">
+      <a href="/admin" class="back">← Admin</a>
+      <span class="topbar-title">Editar proyecto</span>
+    </header>
+
+    <div class="container">
+      <form method="POST" class="form">
+        <div class="form-group">
+          <label for="title">Título</label>
+          <input type="text" id="title" name="title" value={proyecto.title} required />
+        </div>
+
+        <div class="form-group">
+          <label for="slug">Slug</label>
+          <input type="text" id="slug" name="slug" value={proyecto.slug} required />
+        </div>
+
+        <div class="form-group">
+          <label for="description">Descripción</label>
+          <input type="text" id="description" name="description" value={proyecto.description} />
+        </div>
+
+        <div class="form-group">
+          <label for="pub_date">Fecha</label>
+          <input type="date" id="pub_date" name="pub_date" value={proyecto.pub_date} required />
+        </div>
+
+        <div class="form-group">
+          <label for="image">URL imagen</label>
+          <input type="text" id="image" name="image" value={proyecto.image} placeholder="https://..." />
+        </div>
+
+        <div class="form-group">
+          <label for="url">URL del proyecto</label>
+          <input type="text" id="url" name="url" value={proyecto.url} placeholder="https://..." />
+        </div>
+
+        <div class="form-group">
+          <label for="tags">Tags <span class="hint">(separados por comas)</span></label>
+          <input type="text" id="tags" name="tags" value={tags} />
+        </div>
+
+        <div class="form-group">
+          <label for="content">Contenido <span class="hint">(HTML)</span></label>
+          <textarea id="content" name="content" rows="20">{proyecto.content}</textarea>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" name="action" value="delete" class="btn-delete" onclick="return confirm('¿Eliminar este proyecto?')">Eliminar</button>
+          <div class="form-actions-right">
+            <a href="/admin" class="btn-cancel">Cancelar</a>
+            <button type="submit" name="action" value="save" class="btn-save">Guardar cambios</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </main>
+</Base>
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --font-body: 'DM Sans', sans-serif;
+    --color-bg: #fafaf8;
+    --color-text: #1a1a18;
+    --color-muted: #6b6b67;
+    --color-border: #e5e5e0;
+  }
+  main { font-family: var(--font-body); background: var(--color-bg); min-height: 100vh; color: var(--color-text); font-weight: 300; }
+  .topbar {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    padding: 1.25rem 2rem;
+    border-bottom: 1px solid var(--color-border);
+    background: #fafaf8ee;
+    position: sticky;
+    top: 0;
+    backdrop-filter: blur(8px);
+  }
+  .back { font-size: 0.875rem; color: var(--color-muted); text-decoration: none; transition: color 0.2s; }
+  .back:hover { color: var(--color-text); }
+  .topbar-title { font-size: 0.9rem; color: var(--color-muted); }
+  .container { max-width: 720px; margin: 0 auto; padding: 3rem 2rem; }
+  .form { display: flex; flex-direction: column; gap: 1.5rem; }
+  .form-group { display: flex; flex-direction: column; gap: 0.5rem; }
+  label { font-size: 0.875rem; font-weight: 400; }
+  .hint { color: var(--color-muted); font-weight: 300; }
+  input[type="text"], input[type="date"], textarea {
+    padding: 0.65rem 0.875rem;
+    border: 1px solid var(--color-border);
+    background: white;
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+    font-weight: 300;
+    color: var(--color-text);
+    outline: none;
+    transition: border-color 0.2s;
+    width: 100%;
+  }
+  input:focus, textarea:focus { border-color: var(--color-text); }
+  textarea { resize: vertical; line-height: 1.6; }
+  .form-actions { display: flex; justify-content: space-between; align-items: center; padding-top: 1rem; border-top: 1px solid var(--color-border); }
+  .form-actions-right { display: flex; gap: 1rem; }
+  .btn-cancel {
+    padding: 0.65rem 1.25rem;
+    font-size: 0.875rem;
+    text-decoration: none;
+    border: 1px solid var(--color-border);
+    color: var(--color-muted);
+    transition: all 0.2s;
+  }
+  .btn-cancel:hover { border-color: var(--color-text); color: var(--color-text); }
+  .btn-save {
+    padding: 0.65rem 1.5rem;
+    font-size: 0.875rem;
+    background: var(--color-text);
+    color: var(--color-bg);
+    border: none;
+    cursor: pointer;
+    font-family: var(--font-body);
+    transition: opacity 0.2s;
+  }
+  .btn-save:hover { opacity: 0.75; }
+  .btn-delete {
+    padding: 0.65rem 1.25rem;
+    font-size: 0.875rem;
+    background: transparent;
+    color: #c0392b;
+    border: 1px solid #c0392b;
+    cursor: pointer;
+    font-family: var(--font-body);
+    transition: all 0.2s;
+  }
+  .btn-delete:hover { background: #c0392b; color: white; }
+</style>
