@@ -18,7 +18,7 @@ const proyectos = (await getCollection('portfolio'))
     <section class="hero">
       <div class="hero-cover">
         <img src="/images/foto-portada.png" alt="Aitor Sánchez" />
-      </div>      
+      </div>
     </section>
 
     <section class="section">
@@ -67,15 +67,12 @@ const proyectos = (await getCollection('portfolio'))
     padding: 0 1.5rem;
   }
   .hero {
-    padding-bottom: 4rem;
-    border-bottom: 1px solid var(--color-border);
     margin-bottom: 4rem;
   }
   .hero-cover {
     width: calc(100% + 3rem);
     margin-left: -1.5rem;
-    height: 360px;
-    margin-bottom: 2.5rem;
+    height: clamp(200px, 40vw, 360px);
     overflow: hidden;
   }
   .hero-cover img {
@@ -83,23 +80,6 @@ const proyectos = (await getCollection('portfolio'))
     height: 100%;
     object-fit: cover;
     object-position: center top;
-  }
-  .eyebrow {
-    font-size: 0.9rem;
-    color: var(--color-muted);
-    margin-bottom: 0.5rem;
-  }
-  h1 {
-    font-family: var(--font-display);
-    font-size: clamp(2.5rem, 6vw, 4rem);
-    line-height: 1.1;
-    letter-spacing: -0.03em;
-    margin-bottom: 1rem;
-  }
-  .bio {
-    font-size: 1.15rem;
-    color: var(--color-muted);
-    max-width: 42ch;
   }
   .section { margin-bottom: 4rem; }
   .section-header {
