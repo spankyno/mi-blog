@@ -6,20 +6,20 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "dev": "astro dev",
+    "dev": "astro dev --port 3000 --host 0.0.0.0",
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
     "generate-types": "wrangler types"
   },
   "dependencies": {
-    "@astrojs/cloudflare": "^13.1.10",
-    "astro": "^6.1.8"
+    "@astrojs/cloudflare": "^12.1.0",
+    "astro": "^5.4.0"
   },
   "overrides": {
-    "vite": "^7"
+    "vite": "^6"
   },
   "devDependencies": {
-    "wrangler": "^4.84.0"
+    "wrangler": "^3.100.0"
   }
 }
