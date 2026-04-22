@@ -19,7 +19,7 @@ if (Astro.request.method === 'POST') {
 
   if (action === 'delete') {
     await db.prepare(`DELETE FROM posts WHERE id = ?`).bind(id).run();
-    return Astro.redirect('/admin');
+    return Astro.redirect('/panel');
   }
 
   const tagsJson = JSON.stringify(tags.split(',').map((t: string) => t.trim()).filter(Boolean));
@@ -28,18 +28,18 @@ if (Astro.request.method === 'POST') {
     `UPDATE posts SET slug=?, title=?, description=?, content=?, hero_image=?, tags=?, draft=?, pub_date=?, updated_at=datetime('now') WHERE id=?`
   ).bind(slug, title, description, content, hero_image, tagsJson, draft, pub_date, id).run();
 
-  return Astro.redirect('/admin');
+  return Astro.redirect('/panel');
 }
 
 const post = await db.prepare(`SELECT * FROM posts WHERE id = ?`).bind(id).first();
-if (!post) return Astro.redirect('/admin');
+if (!post) return Astro.redirect('/panel');
 
 const tags = JSON.parse(post.tags || '[]').join(', ');
 ---
 <Base title={`Editar — ${post.title}`}>
   <main>
     <header class="topbar">
-      <a href="/admin" class="back">← Admin</a>
+      <a href="/panel" class="back">← Admin</a>
       <span class="topbar-title">Editar post</span>
     </header>
 
@@ -88,7 +88,7 @@ const tags = JSON.parse(post.tags || '[]').join(', ');
         <div class="form-actions">
           <button type="submit" name="action" value="delete" class="btn-delete" onclick="return confirm('¿Eliminar este post?')">Eliminar</button>
           <div class="form-actions-right">
-            <a href="/admin" class="btn-cancel">Cancelar</a>
+            <a href="/panel" class="btn-cancel">Cancelar</a>
             <button type="submit" name="action" value="save" class="btn-save">Guardar cambios</button>
           </div>
         </div>

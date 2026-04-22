@@ -29,7 +29,7 @@ if (db) {
       <section class="panel">
         <div class="panel-header">
           <h2>Blog</h2>
-          <a href="/admin/blog/nuevo" class="btn-new">+ Nuevo post</a>
+          <a href="/panel/blog/nuevo" class="btn-new">+ Nuevo post</a>
         </div>
         <ul class="item-list">
           {posts.map((post: any) => (
@@ -42,7 +42,7 @@ if (db) {
                 </span>
               </div>
               <div class="item-actions">
-                <a href={`/admin/blog/editar/${post.id}`} class="btn-edit">Editar</a>
+                <a href={`/panel/blog/editar/${post.id}`} class="btn-edit">Editar</a>
                 <a href={`/blog/${post.slug}`} target="_blank" class="btn-view">Ver</a>
               </div>
             </li>
@@ -55,7 +55,7 @@ if (db) {
       <section class="panel">
         <div class="panel-header">
           <h2>Portfolio</h2>
-          <a href="/admin/portfolio/nuevo" class="btn-new">+ Nuevo proyecto</a>
+          <a href="/panel/portfolio/nuevo" class="btn-new">+ Nuevo proyecto</a>
         </div>
         <ul class="item-list">
           {proyectos.map((p: any) => (
@@ -67,7 +67,7 @@ if (db) {
                 </span>
               </div>
               <div class="item-actions">
-                <a href={`/admin/portfolio/editar/${p.id}`} class="btn-edit">Editar</a>
+                <a href={`/panel/portfolio/editar/${p.id}`} class="btn-edit">Editar</a>
                 <a href={`/portfolio/${p.slug}`} target="_blank" class="btn-view">Ver</a>
               </div>
             </li>

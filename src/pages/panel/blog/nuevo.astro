@@ -20,7 +20,7 @@ if (Astro.request.method === 'POST') {
     `INSERT INTO posts (slug, title, description, content, hero_image, tags, draft, pub_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(slug, title, description, content, hero_image, tagsJson, draft, pub_date).run();
 
-  return Astro.redirect('/admin');
+  return Astro.redirect('/panel');
 }
 
 const today = new Date().toISOString().split('T')[0];
@@ -28,7 +28,7 @@ const today = new Date().toISOString().split('T')[0];
 <Base title="Nuevo post — Admin">
   <main>
     <header class="topbar">
-      <a href="/admin" class="back">← Admin</a>
+      <a href="/panel" class="back">← Admin</a>
       <span class="topbar-title">Nuevo post</span>
     </header>
 
@@ -75,7 +75,7 @@ const today = new Date().toISOString().split('T')[0];
         </div>
 
         <div class="form-actions">
-          <a href="/admin" class="btn-cancel">Cancelar</a>
+          <a href="/panel" class="btn-cancel">Cancelar</a>
           <button type="submit" class="btn-save">Guardar post</button>
         </div>
       </form>
