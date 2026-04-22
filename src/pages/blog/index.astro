@@ -2,24 +2,30 @@
 import Base from '../../layouts/Base.astro';
 import Header from '../../components/Header.astro';
 import Footer from '../../components/Footer.astro';
-import { getCollection } from 'astro:content';
 
-const posts = (await getCollection('blog', ({ data }) => !data.draft))
-  .sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf());
+const db = Astro.locals.runtime?.env?.DB;
+let posts = [];
+
+if (db) {
+  const result = await db.prepare(
+    `SELECT slug, title, description, pub_date FROM posts WHERE draft = 0 ORDER BY pub_date DESC`
+  ).all();
+  posts = result.results ?? [];
+}
 ---
 <Base title="Blog — Aitor Sánchez">
   <Header />
   <main>
     <h1>Blog</h1>
     <ul class="list">
-      {posts.map(post => (
+      {posts.map((post: any) => (
         <li>
-          <a href={`/blog/${post.id}`} class="post-link">
+          <a href={`/blog/${post.slug}`} class="post-link">
             <div>
-              <span class="post-title">{post.data.title}</span>
-              <span class="post-desc">{post.data.description}</span>
+              <span class="post-title">{post.title}</span>
+              <span class="post-desc">{post.description}</span>
             </div>
-            <span class="post-date">{post.data.pubDate.toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+            <span class="post-date">{new Date(post.pub_date).toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
           </a>
         </li>
       ))}
