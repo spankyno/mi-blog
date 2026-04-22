@@ -2,32 +2,41 @@
 import Base from '../../layouts/Base.astro';
 import Header from '../../components/Header.astro';
 import Footer from '../../components/Footer.astro';
-import { getCollection } from 'astro:content';
 
-const proyectos = (await getCollection('portfolio'))
-  .sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf());
+const db = Astro.locals.runtime?.env?.DB;
+let proyectos = [];
+
+if (db) {
+  const result = await db.prepare(
+    `SELECT slug, title, description, image, tags FROM portfolio ORDER BY pub_date DESC`
+  ).all();
+  proyectos = result.results ?? [];
+}
 ---
 <Base title="Portfolio — Aitor Sánchez">
   <Header />
   <main>
     <h1>Portfolio</h1>
     <ul class="grid">
-      {proyectos.map(p => (
-        <li>
-          <a href={`/portfolio/${p.id}`} class="card">
-            {p.data.image && <img src={p.data.image} alt={p.data.title} />}
-            <div class="card-body">
-              <span class="card-title">{p.data.title}</span>
-              <span class="card-desc">{p.data.description}</span>
-              {p.data.tags.length > 0 && (
-                <div class="tags">
-                  {p.data.tags.map(tag => <span class="tag">{tag}</span>)}
-                </div>
-              )}
-            </div>
-          </a>
-        </li>
-      ))}
+      {proyectos.map((p: any) => {
+        const tags = JSON.parse(p.tags || '[]');
+        return (
+          <li>
+            <a href={`/portfolio/${p.slug}`} class="card">
+              {p.image && <img src={p.image} alt={p.title} />}
+              <div class="card-body">
+                <span class="card-title">{p.title}</span>
+                <span class="card-desc">{p.description}</span>
+                {tags.length > 0 && (
+                  <div class="tags">
+                    {tags.map((tag: string) => <span class="tag">{tag}</span>)}
+                  </div>
+                )}
+              </div>
+            </a>
+          </li>
+        );
+      })}
       {proyectos.length === 0 && <li class="empty">Próximamente…</li>}
     </ul>
   </main>
