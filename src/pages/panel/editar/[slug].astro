@@ -4,7 +4,6 @@ import Base from '../../../layouts/Base.astro';
 const { slug } = Astro.params;
 const db = Astro.locals.runtime?.env?.DB;
 let post: any = null;
-let error = '';
 
 if (db) {
   post = await db.prepare(`SELECT * FROM posts WHERE slug = ?`).bind(slug).first();
@@ -29,8 +28,12 @@ if (Astro.request.method === 'POST') {
     return Astro.redirect('/panel');
   }
 }
+
+const initialContent = post.content ?? '';
 ---
 <Base title={`Editar: ${post.title} — Panel`}>
+  <link rel="stylesheet" href="https://uicdn.toast.com/editor/latest/toastui-editor.min.css" />
+
   <main>
     <div class="topbar">
       <a href="/panel" class="back">← Volver</a>
@@ -38,7 +41,7 @@ if (Astro.request.method === 'POST') {
       <a href={`/blog/${post.slug}`} target="_blank" class="preview">Ver en blog ↗</a>
     </div>
 
-    <form method="POST">
+    <form method="POST" id="post-form">
       <div class="row two">
         <label>
           Título
@@ -55,10 +58,11 @@ if (Astro.request.method === 'POST') {
         <input type="text" name="description" value={post.description ?? ''} />
       </label>
 
-      <label>
-        Contenido <span class="hint">(HTML permitido)</span>
-        <textarea name="content" rows="18">{post.content ?? ''}</textarea>
-      </label>
+      <div class="editor-wrap">
+        <span class="editor-label">Contenido</span>
+        <div id="editor"></div>
+        <input type="hidden" name="content" id="content-input" />
+      </div>
 
       <div class="row two">
         <label>
@@ -78,9 +82,26 @@ if (Astro.request.method === 'POST') {
   </main>
 </Base>
 
+<script src="https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"></script>
+<script define:vars={{ initialContent }}>
+  const { Editor } = window.toastui;
+
+  const editor = new Editor({
+    el: document.getElementById('editor'),
+    height: '480px',
+    initialEditType: 'markdown',
+    previewStyle: 'vertical',
+    initialValue: initialContent,
+  });
+
+  document.getElementById('post-form')?.addEventListener('submit', () => {
+    document.getElementById('content-input').value = editor.getMarkdown();
+  });
+</script>
+
 <style>
   main {
-    max-width: 760px;
+    max-width: 900px;
     margin: 0 auto;
     padding: 2rem 1.5rem 4rem;
   }
@@ -110,10 +131,8 @@ if (Astro.request.method === 'POST') {
     font-weight: 500;
     color: var(--color-muted);
   }
-  .hint { font-weight: 400; font-size: 0.8rem; }
   input[type="text"],
-  input[type="date"],
-  textarea {
+  input[type="date"] {
     font-family: inherit;
     font-size: 1rem;
     font-weight: 300;
@@ -125,11 +144,10 @@ if (Astro.request.method === 'POST') {
     transition: border-color 0.2s;
     width: 100%;
   }
-  input:focus, textarea:focus {
-    outline: none;
-    border-color: var(--color-text);
-  }
-  textarea { resize: vertical; font-size: 0.9rem; line-height: 1.6; }
+  input:focus { outline: none; border-color: var(--color-text); }
+  .editor-wrap { display: flex; flex-direction: column; gap: 0.4rem; }
+  .editor-label { font-size: 0.875rem; font-weight: 500; color: var(--color-muted); }
+  #editor { border: 1px solid var(--color-border); border-radius: 6px; overflow: hidden; }
   .row.two { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
   .checkbox-label {
     flex-direction: row;
