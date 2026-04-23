@@ -9,7 +9,7 @@ let post = null;
 
 if (db) {
   const result = await db.prepare(
-    `SELECT * FROM posts WHERE slug = ? AND draft = 0`
+    `SELECT * FROM posts WHERE slug = ? AND draft != 1`
   ).bind(slug).first();
   post = result;
 }
