@@ -71,38 +71,40 @@ if (Astro.request.method === 'POST') {
   </main>
 </Base>
 
-<script src="https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"></script>
 <script>
-  const { Editor } = (window as any).toastui;
+  const script = document.createElement('script');
+  script.src = 'https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js';
+  script.onload = () => {
+    const { Editor } = (window as any).toastui;
 
-  const editor = new Editor({
-    el: document.getElementById('editor'),
-    height: '480px',
-    initialEditType: 'markdown',
-    previewStyle: 'vertical',
-    placeholder: 'Escribe el contenido del post en Markdown...',
-  });
+    const editor = new Editor({
+      el: document.getElementById('editor'),
+      height: '480px',
+      initialEditType: 'markdown',
+      previewStyle: 'vertical',
+      placeholder: 'Escribe el contenido del post en Markdown...',
+    });
 
-  // Auto-generar slug desde el título
-  const titleInput = document.getElementById('title-input') as HTMLInputElement;
-  const slugInput = document.getElementById('slug-input') as HTMLInputElement;
-  let slugManuallyEdited = false;
+    const titleInput = document.getElementById('title-input') as HTMLInputElement;
+    const slugInput = document.getElementById('slug-input') as HTMLInputElement;
+    let slugManuallyEdited = false;
 
-  slugInput.addEventListener('input', () => { slugManuallyEdited = true; });
-  titleInput.addEventListener('input', () => {
-    if (slugManuallyEdited) return;
-    slugInput.value = titleInput.value
-      .toLowerCase()
-      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9\s-]/g, '')
-      .trim()
-      .replace(/\s+/g, '-');
-  });
+    slugInput.addEventListener('input', () => { slugManuallyEdited = true; });
+    titleInput.addEventListener('input', () => {
+      if (slugManuallyEdited) return;
+      slugInput.value = titleInput.value
+        .toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9\s-]/g, '')
+        .trim()
+        .replace(/\s+/g, '-');
+    });
 
-  // Inyectar markdown en el input oculto antes de enviar
-  document.getElementById('post-form')?.addEventListener('submit', () => {
-    (document.getElementById('content-input') as HTMLInputElement).value = editor.getMarkdown();
-  });
+    document.getElementById('post-form')?.addEventListener('submit', () => {
+      (document.getElementById('content-input') as HTMLInputElement).value = editor.getMarkdown();
+    });
+  };
+  document.head.appendChild(script);
 </script>
 
 <style>
