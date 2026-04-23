@@ -18,8 +18,19 @@ if (db) {
 if (!post) return Astro.redirect('/blog');
 
 const contentHtml = marked(post.content ?? '');
+
+const SITE_URL = 'https://aitorsanchez.pages.dev';
+const ogImage = post.hero_image?.startsWith('http')
+  ? post.hero_image
+  : `${SITE_URL}/images/foto-portada.png`;
 ---
-<Base title={`${post.title} — Aitor Sánchez`} description={post.description}>
+<Base
+  title={post.title}
+  description={post.description ?? undefined}
+  ogType="article"
+  ogImage={ogImage}
+  pubDate={post.pub_date}
+>
   <Header />
   <main>
     <article>
