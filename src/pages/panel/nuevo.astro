@@ -1,0 +1,143 @@
+---
+import Base from '../../layouts/Base.astro';
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const title = (form.get('title') as string)?.trim();
+  const slug = (form.get('slug') as string)?.trim();
+  const description = (form.get('description') as string)?.trim();
+  const content = (form.get('content') as string)?.trim();
+  const pub_date = form.get('pub_date') as string;
+  const draft = form.get('draft') === 'on' ? 1 : 0;
+
+  const db = Astro.locals.runtime?.env?.DB;
+  if (db && title && slug) {
+    await db.prepare(
+      `INSERT INTO posts (slug, title, description, content, pub_date, draft)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    ).bind(slug, title, description, content, pub_date, draft).run();
+
+    return Astro.redirect('/panel');
+  }
+}
+---
+<Base title="Nuevo post — Panel">
+  <main>
+    <div class="topbar">
+      <a href="/panel" class="back">← Volver</a>
+      <h1>Nuevo post</h1>
+    </div>
+
+    <form method="POST">
+      <div class="row two">
+        <label>
+          Título
+          <input type="text" name="title" required placeholder="Mi primer post" />
+        </label>
+        <label>
+          Slug (URL)
+          <input type="text" name="slug" required placeholder="mi-primer-post" pattern="[a-z0-9\-]+" />
+        </label>
+      </div>
+
+      <label>
+        Descripción
+        <input type="text" name="description" placeholder="Un resumen breve del post" />
+      </label>
+
+      <label>
+        Contenido <span class="hint">(HTML permitido)</span>
+        <textarea name="content" rows="18" placeholder="<p>Escribe aquí el contenido...</p>"></textarea>
+      </label>
+
+      <div class="row two">
+        <label>
+          Fecha de publicación
+          <input type="date" name="pub_date" required value={new Date().toISOString().split('T')[0]} />
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" name="draft" checked />
+          Guardar como borrador
+        </label>
+      </div>
+
+      <div class="form-footer">
+        <button type="submit" class="btn-save">Guardar post</button>
+      </div>
+    </form>
+  </main>
+</Base>
+
+<style>
+  main {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+  }
+  .topbar {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  .back { font-size: 0.875rem; color: var(--color-muted); transition: color 0.2s; }
+  .back:hover { color: var(--color-text); }
+  h1 {
+    font-family: var(--font-display);
+    font-size: 2rem;
+    font-weight: 400;
+    letter-spacing: -0.02em;
+  }
+  form { display: flex; flex-direction: column; gap: 1.5rem; }
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--color-muted);
+  }
+  .hint { font-weight: 400; font-size: 0.8rem; }
+  input[type="text"],
+  input[type="date"],
+  textarea {
+    font-family: inherit;
+    font-size: 1rem;
+    font-weight: 300;
+    color: var(--color-text);
+    background: white;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    padding: 0.65rem 0.9rem;
+    transition: border-color 0.2s;
+    width: 100%;
+  }
+  input:focus, textarea:focus {
+    outline: none;
+    border-color: var(--color-text);
+  }
+  textarea { resize: vertical; font-size: 0.9rem; line-height: 1.6; }
+  .row.two { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .checkbox-label {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.6rem;
+    padding-top: 1.6rem;
+    font-size: 0.95rem;
+    color: var(--color-text);
+  }
+  .checkbox-label input { width: auto; }
+  .form-footer { display: flex; justify-content: flex-end; padding-top: 0.5rem; }
+  .btn-save {
+    background: var(--color-text);
+    color: var(--color-bg);
+    border: none;
+    padding: 0.65rem 1.75rem;
+    font-size: 0.95rem;
+    font-family: inherit;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  .btn-save:hover { opacity: 0.75; }
+</style>
