@@ -4,21 +4,19 @@ const nav = [
   { label: "Blog", href: "/blog" },
   { label: "Aitor's Hub", href: "https://aitorhub.vercel.app/", external: true },
   { label: "Contacto", href: "https://aitor-blog-contacto.vercel.app/", external: true },
-  { label: "Admin", href: "/panel" },
 ];
 const current = Astro.url.pathname;
 ---
 <header>
   <nav>
-    <a href="/" class="logo">Aitor Sánchez Gutiérrez</a>
     <ul>
       {nav.map(({ label, href, external }) => (
         <li>
-          <a 
-            href={href} 
-            class={!external && current.startsWith(href) ? "active" : ""}
-            target={external ? "_blank" : undefined}
-            rel={external ? "noopener noreferrer" : undefined}
+          <a
+            href={href}
+            class={!external && (href === '/' ? current === '/' : current.startsWith(href)) ? 'active' : ''}
+            target={external ? '_blank' : undefined}
+            rel={external ? 'noopener noreferrer' : undefined}
           >{label}</a>
         </li>
       ))}
@@ -38,15 +36,9 @@ const current = Astro.url.pathname;
   nav {
     max-width: var(--max-width);
     margin: 0 auto;
-    padding: 1.25rem 1.5rem;
+    padding: 1.1rem 1.5rem;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-  }
-  .logo {
-    font-family: var(--font-display);
-    font-size: 1.25rem;
-    letter-spacing: -0.02em;
   }
   ul {
     list-style: none;
@@ -58,8 +50,7 @@ const current = Astro.url.pathname;
     font-weight: 400;
     color: var(--color-muted);
     transition: color 0.2s;
+    letter-spacing: 0.01em;
   }
-  ul a:hover, ul a.active {
-    color: var(--color-text);
-  }
+  ul a:hover, ul a.active { color: var(--color-text); }
 </style>
