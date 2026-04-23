@@ -22,21 +22,23 @@ if (Astro.request.method === 'POST') {
 }
 ---
 <Base title="Nuevo post — Panel">
+  <link rel="stylesheet" href="https://uicdn.toast.com/editor/latest/toastui-editor.min.css" />
+
   <main>
     <div class="topbar">
       <a href="/panel" class="back">← Volver</a>
       <h1>Nuevo post</h1>
     </div>
 
-    <form method="POST">
+    <form method="POST" id="post-form">
       <div class="row two">
         <label>
           Título
-          <input type="text" name="title" required placeholder="Mi primer post" />
+          <input type="text" name="title" required placeholder="Mi primer post" id="title-input" />
         </label>
         <label>
           Slug (URL)
-          <input type="text" name="slug" required placeholder="mi-primer-post" pattern="[a-z0-9\-]+" />
+          <input type="text" name="slug" required placeholder="mi-primer-post" pattern="[a-z0-9\-]+" id="slug-input" />
         </label>
       </div>
 
@@ -45,10 +47,11 @@ if (Astro.request.method === 'POST') {
         <input type="text" name="description" placeholder="Un resumen breve del post" />
       </label>
 
-      <label>
-        Contenido <span class="hint">(HTML permitido)</span>
-        <textarea name="content" rows="18" placeholder="<p>Escribe aquí el contenido...</p>"></textarea>
-      </label>
+      <div class="editor-wrap">
+        <span class="editor-label">Contenido</span>
+        <div id="editor"></div>
+        <input type="hidden" name="content" id="content-input" />
+      </div>
 
       <div class="row two">
         <label>
@@ -68,9 +71,43 @@ if (Astro.request.method === 'POST') {
   </main>
 </Base>
 
+<script src="https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"></script>
+<script>
+  const { Editor } = (window as any).toastui;
+
+  const editor = new Editor({
+    el: document.getElementById('editor'),
+    height: '480px',
+    initialEditType: 'markdown',
+    previewStyle: 'vertical',
+    placeholder: 'Escribe el contenido del post en Markdown...',
+  });
+
+  // Auto-generar slug desde el título
+  const titleInput = document.getElementById('title-input') as HTMLInputElement;
+  const slugInput = document.getElementById('slug-input') as HTMLInputElement;
+  let slugManuallyEdited = false;
+
+  slugInput.addEventListener('input', () => { slugManuallyEdited = true; });
+  titleInput.addEventListener('input', () => {
+    if (slugManuallyEdited) return;
+    slugInput.value = titleInput.value
+      .toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9\s-]/g, '')
+      .trim()
+      .replace(/\s+/g, '-');
+  });
+
+  // Inyectar markdown en el input oculto antes de enviar
+  document.getElementById('post-form')?.addEventListener('submit', () => {
+    (document.getElementById('content-input') as HTMLInputElement).value = editor.getMarkdown();
+  });
+</script>
+
 <style>
   main {
-    max-width: 760px;
+    max-width: 900px;
     margin: 0 auto;
     padding: 2rem 1.5rem 4rem;
   }
@@ -97,10 +134,8 @@ if (Astro.request.method === 'POST') {
     font-weight: 500;
     color: var(--color-muted);
   }
-  .hint { font-weight: 400; font-size: 0.8rem; }
   input[type="text"],
-  input[type="date"],
-  textarea {
+  input[type="date"] {
     font-family: inherit;
     font-size: 1rem;
     font-weight: 300;
@@ -112,11 +147,10 @@ if (Astro.request.method === 'POST') {
     transition: border-color 0.2s;
     width: 100%;
   }
-  input:focus, textarea:focus {
-    outline: none;
-    border-color: var(--color-text);
-  }
-  textarea { resize: vertical; font-size: 0.9rem; line-height: 1.6; }
+  input:focus { outline: none; border-color: var(--color-text); }
+  .editor-wrap { display: flex; flex-direction: column; gap: 0.4rem; }
+  .editor-label { font-size: 0.875rem; font-weight: 500; color: var(--color-muted); }
+  #editor { border: 1px solid var(--color-border); border-radius: 6px; overflow: hidden; }
   .row.two { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
   .checkbox-label {
     flex-direction: row;
