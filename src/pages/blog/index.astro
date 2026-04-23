@@ -53,9 +53,13 @@ function pageUrl(p: number) {
 ---
 <Base title="Blog — Aitor Sánchez">
   <Header />
+
+  <section class="blog-hero">
+    <img src="/images/foto-portada.png" alt="Blog de Aitor Sánchez" />
+  </section>
+
   <main>
     <div class="blog-header">
-      <h1>Blog</h1>
       <form method="GET" action="/blog" class="search-form" id="search-form">
         <input
           type="search"
@@ -128,6 +132,18 @@ function pageUrl(p: number) {
 </script>
 
 <style>
+  .blog-hero {
+    width: 100%;
+    line-height: 0;
+    margin-bottom: 0;
+  }
+  .blog-hero img {
+    width: 100%;
+    height: 220px;
+    object-fit: cover;
+    object-position: center 30%;
+    display: block;
+  }
   main {
     max-width: var(--max-width);
     margin: 0 auto;
@@ -136,16 +152,10 @@ function pageUrl(p: number) {
   .blog-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
     gap: 1.5rem;
-    margin: 3rem 0 2rem;
+    margin: 1.5rem 0 1.5rem;
     flex-wrap: wrap;
-  }
-  h1 {
-    font-family: var(--font-display);
-    font-size: clamp(2rem, 5vw, 3rem);
-    font-weight: 400;
-    letter-spacing: -0.03em;
   }
   .search-form { position: relative; display: flex; align-items: center; }
   .search-input {
