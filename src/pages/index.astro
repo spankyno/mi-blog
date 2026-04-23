@@ -6,24 +6,23 @@ import Footer from '../components/Footer.astro';
 const db = Astro.locals.runtime?.env?.DB;
 
 let posts = [];
-let proyectos = [];
 
 if (db) {
   const postsResult = await db.prepare(
-    `SELECT slug, title, description, pub_date FROM posts WHERE draft = 0 ORDER BY pub_date DESC LIMIT 3`
+    `SELECT slug, title, description, pub_date, hero_image FROM posts WHERE draft != 1 ORDER BY pub_date DESC LIMIT 4`
   ).all();
   posts = postsResult.results ?? [];
-
-  const portfolioResult = await db.prepare(
-    `SELECT slug, title, description FROM portfolio ORDER BY pub_date DESC LIMIT 3`
-  ).all();
-  proyectos = portfolioResult.results ?? [];
 }
 ---
-<Base title="Aitor Sánchez">
+<Base title="Aitor Sánchez Gutiérrez">
   <Header />
   <main>
     <section class="hero">
+      <div class="hero-text">
+        <h1>Aitor Sánchez<br/>Gutiérrez</h1>
+        <p class="hero-desc">Reflexiones sobre sociedad, tecnología y estilo de vida: desde la administración pública y la desinformación digital hasta la felicidad, el consumo, críticas sociales y relatos creativos.</p>
+        <a href="/blog" class="hero-cta">Leer el blog →</a>
+      </div>
       <div class="hero-cover">
         <img src="/images/foto-portada.png" alt="Aitor Sánchez" />
       </div>
@@ -32,36 +31,27 @@ if (db) {
     <section class="section">
       <div class="section-header">
         <h2>Últimas entradas</h2>
-        <a href="/blog">Ver todas →</a>
+        <a href="/blog" class="see-all">Ver todas →</a>
       </div>
       <ul class="list">
         {posts.map((post: any) => (
           <li>
             <a href={`/blog/${post.slug}`} class="post-link">
-              <span class="post-title">{post.title}</span>
+              <div class="post-thumb">
+                {post.hero_image
+                  ? <img src={post.hero_image} alt={post.title} />
+                  : <div class="post-thumb-placeholder">{post.title.charAt(0)}</div>
+                }
+              </div>
+              <div class="post-info">
+                <span class="post-title">{post.title}</span>
+                {post.description && <span class="post-desc">{post.description}</span>}
+              </div>
               <span class="post-date">{new Date(post.pub_date).toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
             </a>
           </li>
         ))}
         {posts.length === 0 && <li class="empty">Próximamente…</li>}
-      </ul>
-    </section>
-
-    <section class="section">
-      <div class="section-header">
-        <h2>Portfolio</h2>
-        <a href="https://aitorhub.vercel.app/" target="_blank" rel="noopener">Ver todo →</a>
-      </div>
-      <ul class="list">
-        {proyectos.map((p: any) => (
-          <li>
-            <a href={`/portfolio/${p.slug}`} class="post-link">
-              <span class="post-title">{p.title}</span>
-              <span class="post-date">{p.description}</span>
-            </a>
-          </li>
-        ))}
-        {proyectos.length === 0 && <li class="empty">Próximamente…</li>}
       </ul>
     </section>
   </main>
@@ -72,14 +62,47 @@ if (db) {
   main {
     max-width: var(--max-width);
     margin: 0 auto;
-    padding: 0 1.5rem;
+    padding: 0 1.5rem 4rem;
   }
-  .hero { margin-bottom: 4rem; }
+
+  /* Hero */
+  .hero {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    align-items: center;
+    padding: 4rem 0 4rem;
+    border-bottom: 1px solid var(--color-border);
+    margin-bottom: 4rem;
+  }
+  .hero-text { display: flex; flex-direction: column; gap: 1.25rem; }
+  h1 {
+    font-family: var(--font-display);
+    font-size: clamp(2rem, 4vw, 2.75rem);
+    font-weight: 400;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+  }
+  .hero-desc {
+    font-size: 0.95rem;
+    color: var(--color-muted);
+    line-height: 1.7;
+    max-width: 36ch;
+  }
+  .hero-cta {
+    display: inline-block;
+    font-size: 0.9rem;
+    font-weight: 400;
+    border-bottom: 1px solid var(--color-text);
+    padding-bottom: 2px;
+    align-self: flex-start;
+    transition: opacity 0.2s;
+  }
+  .hero-cta:hover { opacity: 0.6; }
   .hero-cover {
-    width: calc(100% + 3rem);
-    margin-left: -1.5rem;
-    height: clamp(200px, 40vw, 360px);
+    aspect-ratio: 4/3;
     overflow: hidden;
+    border-radius: 4px;
   }
   .hero-cover img {
     width: 100%;
@@ -87,37 +110,89 @@ if (db) {
     object-fit: cover;
     object-position: center top;
   }
+
+  /* Sección */
   .section { margin-bottom: 4rem; }
   .section-header {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1.25rem;
   }
   .section-header h2 {
     font-family: var(--font-display);
-    font-size: 1.5rem;
+    font-size: 1.35rem;
     font-weight: 400;
   }
-  .section-header a {
+  .see-all {
     font-size: 0.875rem;
     color: var(--color-muted);
     transition: color 0.2s;
   }
-  .section-header a:hover { color: var(--color-text); }
+  .see-all:hover { color: var(--color-text); }
+
+  /* Lista de posts con thumbnail */
   .list { list-style: none; }
   .list li { border-top: 1px solid var(--color-border); }
   .list li:last-child { border-bottom: 1px solid var(--color-border); }
   .post-link {
     display: flex;
-    justify-content: space-between;
-    align-items: baseline;
+    align-items: center;
     gap: 1rem;
-    padding: 1rem 0;
+    padding: 0.9rem 0;
     transition: opacity 0.2s;
   }
   .post-link:hover { opacity: 0.6; }
-  .post-title { font-weight: 400; }
-  .post-date { font-size: 0.85rem; color: var(--color-muted); white-space: nowrap; }
+  .post-thumb {
+    flex-shrink: 0;
+    width: 52px;
+    height: 52px;
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--color-border);
+  }
+  .post-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .post-thumb-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-display);
+    font-size: 1.25rem;
+    color: var(--color-muted);
+    background: var(--color-border);
+  }
+  .post-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+  }
+  .post-title {
+    font-weight: 400;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .post-desc {
+    font-size: 0.825rem;
+    color: var(--color-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .post-date { font-size: 0.8rem; color: var(--color-muted); white-space: nowrap; flex-shrink: 0; }
   .empty { padding: 1rem 0; color: var(--color-muted); font-size: 0.9rem; border-top: 1px solid var(--color-border); }
+
+  @media (max-width: 580px) {
+    .hero { grid-template-columns: 1fr; }
+    .hero-cover { display: none; }
+    .post-date { display: none; }
+  }
 </style>
