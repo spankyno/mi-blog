@@ -20,10 +20,12 @@ if (Astro.request.method === 'POST') {
   const pub_date = form.get('pub_date') as string;
   const draft = form.get('draft') === 'on' ? 1 : 0;
 
+  const hero_image = (form.get('hero_image') as string)?.trim() || null;
+
   if (db && title && newSlug) {
     await db.prepare(
-      `UPDATE posts SET slug=?, title=?, description=?, content=?, pub_date=?, draft=? WHERE slug=?`
-    ).bind(newSlug, title, description, content, pub_date, draft, slug).run();
+      `UPDATE posts SET slug=?, title=?, description=?, content=?, pub_date=?, draft=?, hero_image=? WHERE slug=?`
+    ).bind(newSlug, title, description, content, pub_date, draft, hero_image, slug).run();
 
     return Astro.redirect('/panel');
   }
@@ -57,6 +59,17 @@ const initialContent = post.content ?? '';
         Descripción
         <input type="text" name="description" value={post.description ?? ''} />
       </label>
+
+      <div class="image-wrap">
+        <label>
+          Imagen de cabecera <span class="hint">(URL externa, ej. de Imgur o GitHub)</span>
+          <input type="text" name="hero_image" id="hero-image-input" value={post.hero_image ?? ''} placeholder="https://i.imgur.com/ejemplo.jpg" />
+        </label>
+        <div id="image-preview" class={`image-preview${post.hero_image ? '' : ' hidden'}`}>
+          <img id="preview-img" src={post.hero_image ?? ''} alt="Preview" />
+          <button type="button" id="remove-image" class="btn-remove">✕ Quitar imagen</button>
+        </div>
+      </div>
 
       <div class="editor-wrap">
         <span class="editor-label">Contenido</span>
@@ -99,6 +112,29 @@ const initialContent = post.content ?? '';
     document.getElementById('post-form')?.addEventListener('submit', () => {
       document.getElementById('content-input').value = editor.getMarkdown();
     });
+
+    // Previsualización de imagen
+    const heroInput = document.getElementById('hero-image-input');
+    const preview = document.getElementById('image-preview');
+    const previewImg = document.getElementById('preview-img');
+    const removeBtn = document.getElementById('remove-image');
+
+    function updatePreview(url) {
+      if (url) {
+        previewImg.src = url;
+        preview.classList.remove('hidden');
+      } else {
+        preview.classList.add('hidden');
+        previewImg.src = '';
+      }
+    }
+
+    heroInput.addEventListener('input', () => updatePreview(heroInput.value.trim()));
+    removeBtn.addEventListener('click', () => {
+      heroInput.value = '';
+      updatePreview('');
+    });
+    previewImg.addEventListener('error', () => preview.classList.add('hidden'));
   };
   document.head.appendChild(script);
 </script>
@@ -149,6 +185,30 @@ const initialContent = post.content ?? '';
     width: 100%;
   }
   input:focus { outline: none; border-color: var(--color-text); }
+  .image-wrap { display: flex; flex-direction: column; gap: 0.75rem; }
+  .image-preview { position: relative; display: inline-block; width: 100%; }
+  .image-preview img {
+    width: 100%;
+    max-height: 240px;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 1px solid var(--color-border);
+  }
+  .image-preview.hidden { display: none; }
+  .btn-remove {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background: rgba(0,0,0,0.6);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 0.25rem 0.6rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .btn-remove:hover { background: rgba(0,0,0,0.85); }
   .editor-wrap { display: flex; flex-direction: column; gap: 0.4rem; }
   .editor-label { font-size: 0.875rem; font-weight: 500; color: var(--color-muted); }
   #editor { border: 1px solid var(--color-border); border-radius: 6px; overflow: hidden; }
