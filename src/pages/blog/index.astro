@@ -22,7 +22,7 @@ if (db) {
     total = (countResult as any)?.n ?? 0;
 
     const result = await db.prepare(
-      `SELECT slug, title, description, pub_date FROM posts
+      `SELECT slug, title, description, pub_date, hero_image FROM posts
        WHERE draft != 1 AND (title LIKE ? OR description LIKE ?)
        ORDER BY pub_date DESC LIMIT ? OFFSET ?`
     ).bind(like, like, PER_PAGE, offset).all();
@@ -34,7 +34,7 @@ if (db) {
     total = (countResult as any)?.n ?? 0;
 
     const result = await db.prepare(
-      `SELECT slug, title, description, pub_date FROM posts
+      `SELECT slug, title, description, pub_date, hero_image FROM posts
        WHERE draft != 1 ORDER BY pub_date DESC LIMIT ? OFFSET ?`
     ).bind(PER_PAGE, offset).all();
     posts = result.results ?? [];
@@ -82,15 +82,21 @@ function pageUrl(p: number) {
       {posts.map((post: any) => (
         <li>
           <a href={`/blog/${post.slug}`} class="post-link">
-            <div>
+            <div class="post-thumb">
+              {post.hero_image
+                ? <img src={post.hero_image} alt={post.title} />
+                : <div class="post-thumb-placeholder">{post.title.charAt(0)}</div>
+              }
+            </div>
+            <div class="post-info">
               <span class="post-title">{post.title}</span>
-              <span class="post-desc">{post.description}</span>
+              {post.description && <span class="post-desc">{post.description}</span>}
             </div>
             <span class="post-date">{new Date(post.pub_date).toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
           </a>
         </li>
       ))}
-      {posts.length === 0 && !q && <li class="empty">Aún no hay posts. ¡Vuelve pronto!</li>}
+      {posts.length === 0 && !q && <li class="empty">Aún no hay posts publicados.</li>}
       {posts.length === 0 && q && <li class="empty">No se encontraron posts.</li>}
     </ul>
 
@@ -112,11 +118,9 @@ function pageUrl(p: number) {
 </Base>
 
 <script>
-  // Submit automático al escribir (con debounce)
   const input = document.getElementById('search-input') as HTMLInputElement;
   const form = document.getElementById('search-form') as HTMLFormElement;
   let timer: ReturnType<typeof setTimeout>;
-
   input?.addEventListener('input', () => {
     clearTimeout(timer);
     timer = setTimeout(() => form.submit(), 400);
@@ -127,11 +131,11 @@ function pageUrl(p: number) {
   main {
     max-width: var(--max-width);
     margin: 0 auto;
-    padding: 0 1.5rem;
+    padding: 0 1.5rem 4rem;
   }
   .blog-header {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
     gap: 1.5rem;
     margin: 3rem 0 2rem;
@@ -142,62 +146,92 @@ function pageUrl(p: number) {
     font-size: clamp(2rem, 5vw, 3rem);
     font-weight: 400;
     letter-spacing: -0.03em;
-    margin: 0;
   }
   .search-form { position: relative; display: flex; align-items: center; }
   .search-input {
     font-family: inherit;
-    font-size: 0.9rem;
+    font-size: 0.875rem;
     font-weight: 300;
     color: var(--color-text);
     background: white;
     border: 1px solid var(--color-border);
     border-radius: 99px;
-    padding: 0.45rem 1rem;
+    padding: 0.45rem 2rem 0.45rem 1rem;
     width: 200px;
     transition: border-color 0.2s, width 0.3s;
   }
-  .search-input:focus {
-    outline: none;
-    border-color: var(--color-text);
-    width: 260px;
-  }
+  .search-input:focus { outline: none; border-color: var(--color-text); width: 240px; }
   .clear-search {
     position: absolute;
     right: 0.75rem;
     font-size: 0.75rem;
     color: var(--color-muted);
     cursor: pointer;
-    line-height: 1;
   }
   .clear-search:hover { color: var(--color-text); }
-  .search-info {
-    font-size: 0.875rem;
-    color: var(--color-muted);
-    margin-bottom: 1.5rem;
-  }
+  .search-info { font-size: 0.875rem; color: var(--color-muted); margin-bottom: 1.5rem; }
+
+  /* Lista con thumbnails */
   .list { list-style: none; }
   .list li { border-top: 1px solid var(--color-border); }
   .list li:last-child { border-bottom: 1px solid var(--color-border); }
   .post-link {
     display: flex;
-    justify-content: space-between;
     align-items: center;
     gap: 1rem;
-    padding: 1.25rem 0;
+    padding: 1rem 0;
     transition: opacity 0.2s;
   }
   .post-link:hover { opacity: 0.6; }
-  .post-title { display: block; font-weight: 400; margin-bottom: 0.2rem; }
-  .post-desc { display: block; font-size: 0.875rem; color: var(--color-muted); }
-  .post-date { font-size: 0.85rem; color: var(--color-muted); white-space: nowrap; }
+  .post-thumb {
+    flex-shrink: 0;
+    width: 56px;
+    height: 56px;
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--color-border);
+  }
+  .post-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .post-thumb-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-display);
+    font-size: 1.4rem;
+    color: var(--color-muted);
+  }
+  .post-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+  }
+  .post-title {
+    font-weight: 400;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .post-desc {
+    font-size: 0.825rem;
+    color: var(--color-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .post-date { font-size: 0.8rem; color: var(--color-muted); white-space: nowrap; flex-shrink: 0; }
   .empty { padding: 1.25rem 0; color: var(--color-muted); border-top: 1px solid var(--color-border); }
+
+  /* Paginación */
   .pagination {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 1.5rem;
-    margin: 3rem 0 2rem;
+    margin: 3rem 0 1rem;
   }
   .page-btn {
     font-size: 0.875rem;
@@ -208,10 +242,10 @@ function pageUrl(p: number) {
     transition: background 0.15s;
   }
   .page-btn:hover { background: var(--color-border); }
-  .page-btn.disabled {
-    color: var(--color-muted);
-    cursor: default;
-    pointer-events: none;
-  }
+  .page-btn.disabled { color: var(--color-muted); pointer-events: none; }
   .page-info { font-size: 0.875rem; color: var(--color-muted); }
+
+  @media (max-width: 500px) {
+    .post-date { display: none; }
+  }
 </style>
