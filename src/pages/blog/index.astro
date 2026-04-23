@@ -4,19 +4,80 @@ import Header from '../../components/Header.astro';
 import Footer from '../../components/Footer.astro';
 
 const db = Astro.locals.runtime?.env?.DB;
+
+const PER_PAGE = 10;
+const page = Math.max(1, parseInt(Astro.url.searchParams.get('page') ?? '1'));
+const q = (Astro.url.searchParams.get('q') ?? '').trim();
+const offset = (page - 1) * PER_PAGE;
+
 let posts = [];
+let total = 0;
 
 if (db) {
-  const result = await db.prepare(
-    `SELECT slug, title, description, pub_date FROM posts WHERE draft = 0 ORDER BY pub_date DESC`
-  ).all();
-  posts = result.results ?? [];
+  if (q) {
+    const like = `%${q}%`;
+    const countResult = await db.prepare(
+      `SELECT COUNT(*) as n FROM posts WHERE draft != 1 AND (title LIKE ? OR description LIKE ?)`
+    ).bind(like, like).first();
+    total = (countResult as any)?.n ?? 0;
+
+    const result = await db.prepare(
+      `SELECT slug, title, description, pub_date FROM posts
+       WHERE draft != 1 AND (title LIKE ? OR description LIKE ?)
+       ORDER BY pub_date DESC LIMIT ? OFFSET ?`
+    ).bind(like, like, PER_PAGE, offset).all();
+    posts = result.results ?? [];
+  } else {
+    const countResult = await db.prepare(
+      `SELECT COUNT(*) as n FROM posts WHERE draft != 1`
+    ).first();
+    total = (countResult as any)?.n ?? 0;
+
+    const result = await db.prepare(
+      `SELECT slug, title, description, pub_date FROM posts
+       WHERE draft != 1 ORDER BY pub_date DESC LIMIT ? OFFSET ?`
+    ).bind(PER_PAGE, offset).all();
+    posts = result.results ?? [];
+  }
+}
+
+const totalPages = Math.ceil(total / PER_PAGE);
+
+function pageUrl(p: number) {
+  const params = new URLSearchParams();
+  if (q) params.set('q', q);
+  if (p > 1) params.set('page', String(p));
+  const qs = params.toString();
+  return `/blog${qs ? '?' + qs : ''}`;
 }
 ---
 <Base title="Blog — Aitor Sánchez">
   <Header />
   <main>
-    <h1>Blog</h1>
+    <div class="blog-header">
+      <h1>Blog</h1>
+      <form method="GET" action="/blog" class="search-form" id="search-form">
+        <input
+          type="search"
+          name="q"
+          value={q}
+          placeholder="Buscar posts..."
+          class="search-input"
+          id="search-input"
+          autocomplete="off"
+        />
+        {q && <a href="/blog" class="clear-search" aria-label="Limpiar búsqueda">✕</a>}
+      </form>
+    </div>
+
+    {q && (
+      <p class="search-info">
+        {total === 0
+          ? `Sin resultados para "${q}"`
+          : `${total} resultado${total !== 1 ? 's' : ''} para "${q}"`}
+      </p>
+    )}
+
     <ul class="list">
       {posts.map((post: any) => (
         <li>
@@ -29,11 +90,38 @@ if (db) {
           </a>
         </li>
       ))}
-      {posts.length === 0 && <li class="empty">Aún no hay posts. ¡Vuelve pronto!</li>}
+      {posts.length === 0 && !q && <li class="empty">Aún no hay posts. ¡Vuelve pronto!</li>}
+      {posts.length === 0 && q && <li class="empty">No se encontraron posts.</li>}
     </ul>
+
+    {totalPages > 1 && (
+      <nav class="pagination" aria-label="Paginación">
+        {page > 1
+          ? <a href={pageUrl(page - 1)} class="page-btn">← Anterior</a>
+          : <span class="page-btn disabled">← Anterior</span>
+        }
+        <span class="page-info">Página {page} de {totalPages}</span>
+        {page < totalPages
+          ? <a href={pageUrl(page + 1)} class="page-btn">Siguiente →</a>
+          : <span class="page-btn disabled">Siguiente →</span>
+        }
+      </nav>
+    )}
   </main>
   <Footer />
 </Base>
+
+<script>
+  // Submit automático al escribir (con debounce)
+  const input = document.getElementById('search-input') as HTMLInputElement;
+  const form = document.getElementById('search-form') as HTMLFormElement;
+  let timer: ReturnType<typeof setTimeout>;
+
+  input?.addEventListener('input', () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => form.submit(), 400);
+  });
+</script>
 
 <style>
   main {
@@ -41,12 +129,52 @@ if (db) {
     margin: 0 auto;
     padding: 0 1.5rem;
   }
+  .blog-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1.5rem;
+    margin: 3rem 0 2rem;
+    flex-wrap: wrap;
+  }
   h1 {
     font-family: var(--font-display);
     font-size: clamp(2rem, 5vw, 3rem);
     font-weight: 400;
     letter-spacing: -0.03em;
-    margin: 3rem 0 2.5rem;
+    margin: 0;
+  }
+  .search-form { position: relative; display: flex; align-items: center; }
+  .search-input {
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 300;
+    color: var(--color-text);
+    background: white;
+    border: 1px solid var(--color-border);
+    border-radius: 99px;
+    padding: 0.45rem 1rem;
+    width: 200px;
+    transition: border-color 0.2s, width 0.3s;
+  }
+  .search-input:focus {
+    outline: none;
+    border-color: var(--color-text);
+    width: 260px;
+  }
+  .clear-search {
+    position: absolute;
+    right: 0.75rem;
+    font-size: 0.75rem;
+    color: var(--color-muted);
+    cursor: pointer;
+    line-height: 1;
+  }
+  .clear-search:hover { color: var(--color-text); }
+  .search-info {
+    font-size: 0.875rem;
+    color: var(--color-muted);
+    margin-bottom: 1.5rem;
   }
   .list { list-style: none; }
   .list li { border-top: 1px solid var(--color-border); }
@@ -64,4 +192,26 @@ if (db) {
   .post-desc { display: block; font-size: 0.875rem; color: var(--color-muted); }
   .post-date { font-size: 0.85rem; color: var(--color-muted); white-space: nowrap; }
   .empty { padding: 1.25rem 0; color: var(--color-muted); border-top: 1px solid var(--color-border); }
+  .pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.5rem;
+    margin: 3rem 0 2rem;
+  }
+  .page-btn {
+    font-size: 0.875rem;
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    padding: 0.4rem 1rem;
+    transition: background 0.15s;
+  }
+  .page-btn:hover { background: var(--color-border); }
+  .page-btn.disabled {
+    color: var(--color-muted);
+    cursor: default;
+    pointer-events: none;
+  }
+  .page-info { font-size: 0.875rem; color: var(--color-muted); }
 </style>
