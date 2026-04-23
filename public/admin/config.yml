@@ -1,0 +1,20 @@
+backend:
+  name: github
+  repo: spankyno/mi-blog
+  branch: main
+
+media_folder: public/images
+public_folder: /images
+
+collections:
+  - name: posts
+    label: Posts
+    folder: src/content/posts
+    create: true
+    slug: "{{slug}}"
+    fields:
+      - { label: Título, name: title, widget: string }
+      - { label: Descripción, name: description, widget: string }
+      - { label: Fecha, name: pub_date, widget: datetime }
+      - { label: Borrador, name: draft, widget: boolean, default: true }
+      - { label: Contenido, name: body, widget: markdown }
