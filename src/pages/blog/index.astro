@@ -136,14 +136,15 @@ function pageUrl(p: number) {
     width: 100%;
     line-height: 0;
     margin-bottom: 0;
+    display: flex;
+    justify-content: center;
+    background: #0d1b2e;
   }
   .blog-hero img {
-    width: 100%;
-    height: clamp(100px, 20vw, 150px);
-    object-fit: contain;
-    object-position: center;
+    width: min(480px, 70%);
+    height: auto;
     display: block;
-    background: #0d1b2e;
+    padding: 1rem 0;
   }
   main {
     max-width: var(--max-width);
