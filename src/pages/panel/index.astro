@@ -42,6 +42,7 @@ if (db) {
             </td>
             <td class="actions">
               <a href={`/panel/editar/${post.slug}`} class="btn-edit">Editar</a>
+              <a href={`/panel/preview/${post.slug}`} class="btn-view">Ver</a>
               <button
                 class="btn-delete"
                 data-slug={post.slug}
@@ -160,6 +161,8 @@ if (db) {
   }
   .btn-edit { color: var(--color-text); text-decoration: none; }
   .btn-edit:hover { background: var(--color-border); }
+  .btn-view { color: #0369a1; border-color: #bae6fd; text-decoration: none; }
+  .btn-view:hover { background: #e0f2fe; }
   .btn-delete { color: #dc2626; border-color: #fca5a5; }
   .btn-delete:hover { background: #fee2e2; }
 
