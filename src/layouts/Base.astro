@@ -119,6 +119,50 @@ const jsonLd = ogType === 'article'
     </style>
   </head>
   <body>
-    <slot />
-  </body>
+  <slot />
+
+    <div id="aviso-privacidad">
+      <p>Este sitio registra datos de acceso con fines de seguridad y estadística. No se usan cookies de tracking ni publicidad.</p>
+      <button onclick="document.getElementById('aviso-privacidad').style.display='none';localStorage.setItem('aviso-ok','1')">Entendido</button>
+    </div>
+
+    <script>
+      if (localStorage.getItem('aviso-ok')) {
+        document.getElementById('aviso-privacidad').style.display = 'none';
+      }
+    </script>
+
+    <style>
+      #aviso-privacidad {
+        position: fixed;
+        bottom: 1.5rem;
+        left: 50%;
+        transform: translateX(-50%);
+        width: min(92%, 680px);
+        background: var(--color-text);
+        color: var(--color-bg);
+        padding: 1rem 1.25rem;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        gap: 1.25rem;
+        font-size: 0.85rem;
+        z-index: 999;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+      }
+      #aviso-privacidad p { flex: 1; line-height: 1.5; }
+      #aviso-privacidad button {
+        background: var(--color-bg);
+        color: var(--color-text);
+        border: none;
+        padding: 0.45rem 1rem;
+        border-radius: 5px;
+        font-size: 0.82rem;
+        font-family: var(--font-body);
+        cursor: pointer;
+        white-space: nowrap;
+        font-weight: 500;
+      }
+    </style>
+  </body> 
 </html>
