@@ -18,39 +18,38 @@ if (db) {
 
 if (!post) return Astro.redirect('/blog');
 
-/* VISITAS DESACTIVADAS TEMPORALMENTE
-if (db) {
-  ...todo el bloque...
-}
-*/
-
 const contentHtml = DOMPurify.sanitize(await marked(post.content ?? ''));
 
+// Registrar visita de forma no bloqueante
 if (db) {
-  const req = Astro.request;
-  const headers = req.headers;
-  const ip = headers.get('cf-connecting-ip') ?? headers.get('x-forwarded-for') ?? null;
-  const country = headers.get('cf-ipcountry') ?? null;
-  const region = headers.get('cf-region') ?? null;
-  const city = headers.get('cf-ipcity') ?? null;
-  const userAgent = headers.get('user-agent') ?? null;
-  const referer = headers.get('referer') ?? null;
-  const botPatterns = /bot|crawler|spider|curl|python|wget|scrapy|headless/i;
-  const isBot = userAgent ? (botPatterns.test(userAgent) ? 1 : 0) : 0;
-  const viewedAt = new Date().toISOString();
+  try {
+    const req = Astro.request;
+    const hdrs = req.headers;
+    const ip = hdrs.get('cf-connecting-ip') ?? hdrs.get('x-forwarded-for') ?? null;
+    const country = hdrs.get('cf-ipcountry') ?? null;
+    const region = hdrs.get('cf-region') ?? null;
+    const city = hdrs.get('cf-ipcity') ?? null;
+    const userAgent = hdrs.get('user-agent') ?? null;
+    const referer = hdrs.get('referer') ?? null;
+    const botPatterns = /bot|crawler|spider|curl|python|wget|scrapy|headless/i;
+    const isBot = userAgent ? (botPatterns.test(userAgent) ? 1 : 0) : 0;
+    const viewedAt = new Date().toISOString();
 
-  const insertPromise = db.prepare(
-  `INSERT INTO page_views (slug, viewed_at, ip, country, region, city, user_agent, referer, is_bot)
-   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-).bind(slug, viewedAt, ip, country, region, city, userAgent, referer, isBot).run();
+    const insertPromise = db.prepare(
+      `INSERT INTO page_views (slug, viewed_at, ip, country, region, city, user_agent, referer, is_bot)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(slug, viewedAt, ip, country, region, city, userAgent, referer, isBot).run();
 
-if (Astro.locals.runtime?.ctx?.waitUntil) {
-  Astro.locals.runtime.ctx.waitUntil(insertPromise);
-} else {
-  await insertPromise;
+    if (Astro.locals.runtime?.ctx?.waitUntil) {
+      Astro.locals.runtime.ctx.waitUntil(insertPromise);
+    } else {
+      await insertPromise;
+    }
+  } catch (e) {
+    // No bloqueamos la carga del post si falla el registro
+    console.error('Error registrando visita:', e);
+  }
 }
-}
-
 
 const SITE_URL = 'https://aitorsanchez.pages.dev';
 const ogImage = post.hero_image?.startsWith('http')
