@@ -2,6 +2,7 @@
 import Base from '../../../layouts/Base.astro';
 import Header from '../../../components/Header.astro';
 import { marked } from 'marked';
+import DOMPurify from 'isomorphic-dompurify';
 
 const { slug } = Astro.params;
 const db = Astro.locals.runtime?.env?.DB;
@@ -13,7 +14,7 @@ if (db) {
 
 if (!post) return Astro.redirect('/panel');
 
-const contentHtml = marked(post.content ?? '');
+const contentHtml = DOMPurify.sanitize(await marked(post.content ?? ''));
 ---
 <Base title={`Preview: ${post.title}`}>
   <Header />
