@@ -35,8 +35,9 @@ if (db) {
     const hdrs = req.headers;
     const ip = hdrs.get('cf-connecting-ip') ?? hdrs.get('x-forwarded-for') ?? null;
     const country = hdrs.get('cf-ipcountry') ?? null;
-    const region = hdrs.get('cf-region') ?? null;
-    const city = hdrs.get('cf-ipcity') ?? null;
+    const cf = (Astro.locals.runtime?.cf as any) ?? null;
+    const region = cf?.region ?? hdrs.get('cf-region') ?? null;
+    const city = cf?.city ?? hdrs.get('cf-ipcity') ?? null;
     const userAgent = hdrs.get('user-agent') ?? null;
     const referer = hdrs.get('referer') ?? null;
     const botPatterns = /bot|crawler|spider|curl|python|wget|scrapy|headless/i;
