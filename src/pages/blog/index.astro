@@ -15,17 +15,27 @@ let total = 0;
 
 if (db) {
   if (q) {
-    const like = `%${q}%`;
+    // FTS5: escapamos caracteres especiales para evitar errores de sintaxis
+    const ftsQuery = q.replace(/["*]/g, ' ').trim();
+
     const countResult = await db.prepare(
-      `SELECT COUNT(*) as n FROM posts WHERE draft != 1 AND (title LIKE ? OR description LIKE ?)`
-    ).bind(like, like).first();
+      `SELECT COUNT(*) as n
+       FROM posts_fts
+       JOIN posts ON posts.rowid = posts_fts.rowid
+       WHERE posts.draft != 1
+         AND posts_fts MATCH ?`
+    ).bind(ftsQuery).first();
     total = (countResult as any)?.n ?? 0;
 
     const result = await db.prepare(
-      `SELECT slug, title, description, pub_date, hero_image FROM posts
-       WHERE draft != 1 AND (title LIKE ? OR description LIKE ?)
-       ORDER BY pub_date DESC LIMIT ? OFFSET ?`
-    ).bind(like, like, PER_PAGE, offset).all();
+      `SELECT posts.slug, posts.title, posts.description, posts.pub_date, posts.hero_image
+       FROM posts_fts
+       JOIN posts ON posts.rowid = posts_fts.rowid
+       WHERE posts.draft != 1
+         AND posts_fts MATCH ?
+       ORDER BY bm25(posts_fts)
+       LIMIT ? OFFSET ?`
+    ).bind(ftsQuery, PER_PAGE, offset).all();
     posts = result.results ?? [];
   } else {
     const countResult = await db.prepare(
@@ -55,7 +65,7 @@ function pageUrl(p: number) {
   <Header />
 
   <section class="blog-hero">
-    <img src="/images/foto-portada.webp" alt="Blog de Aitor Sánchez" />
+    <img src="/images/foto-portada.png" alt="Blog de Aitor Sánchez" />
   </section>
 
   <main>

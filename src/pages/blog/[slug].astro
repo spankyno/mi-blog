@@ -3,6 +3,7 @@ import Base from '../../layouts/Base.astro';
 import Header from '../../components/Header.astro';
 import Footer from '../../components/Footer.astro';
 import { marked } from 'marked';
+import DOMPurify from 'isomorphic-dompurify';
 
 const { slug } = Astro.params;
 const db = Astro.locals.runtime?.env?.DB;
@@ -17,7 +18,7 @@ if (db) {
 
 if (!post) return Astro.redirect('/blog');
 
-const contentHtml = marked(post.content ?? '');
+const contentHtml = DOMPurify.sanitize(await marked(post.content ?? ''));
 
 const SITE_URL = 'https://aitorsanchez.pages.dev';
 const ogImage = post.hero_image?.startsWith('http')
