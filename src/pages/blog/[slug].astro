@@ -18,6 +18,14 @@ if (db) {
 
 if (!post) return Astro.redirect('/blog');
 
+/* VISITAS DESACTIVADAS TEMPORALMENTE
+if (db) {
+  ...todo el bloque...
+}
+*/
+
+const contentHtml = DOMPurify.sanitize(await marked(post.content ?? ''));
+
 if (db) {
   const req = Astro.request;
   const headers = req.headers;
