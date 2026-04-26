@@ -18,7 +18,7 @@ if (db) {
 
 if (!post) return Astro.redirect('/blog');
 
-const contentHtml = DOMPurify.sanitize(await marked(post.content ?? ''));
+const contentHtml = post.content ?? '';
 
 // Registrar visita de forma no bloqueante
 if (db) {
