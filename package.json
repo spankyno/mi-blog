@@ -15,6 +15,7 @@
   "dependencies": {
     "@astrojs/cloudflare": "^12.2.1",
     "astro": "5.7.0",
+    "isomorphic-dompurify": "^3.10.0",
     "marked": "^18.0.2"
   },
   "devDependencies": {
