@@ -31,12 +31,16 @@ if (db) {
   const isBot = userAgent ? (botPatterns.test(userAgent) ? 1 : 0) : 0;
   const viewedAt = new Date().toISOString();
 
-  Astro.locals.runtime.ctx.waitUntil(
-    db.prepare(
-      `INSERT INTO page_views (slug, viewed_at, ip, country, region, city, user_agent, referer, is_bot)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).bind(slug, viewedAt, ip, country, region, city, userAgent, referer, isBot).run()
-  );
+  const insertPromise = db.prepare(
+  `INSERT INTO page_views (slug, viewed_at, ip, country, region, city, user_agent, referer, is_bot)
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+).bind(slug, viewedAt, ip, country, region, city, userAgent, referer, isBot).run();
+
+if (Astro.locals.runtime?.ctx?.waitUntil) {
+  Astro.locals.runtime.ctx.waitUntil(insertPromise);
+} else {
+  await insertPromise;
+}
 }
 
 const contentHtml = DOMPurify.sanitize(await marked(post.content ?? ''));
