@@ -3,7 +3,7 @@ import Base from '../../layouts/Base.astro';
 import Header from '../../components/Header.astro';
 import Footer from '../../components/Footer.astro';
 import { marked } from 'marked';
-import DOMPurify from 'isomorphic-dompurify';
+import sanitizeHtml from 'sanitize-html';
 
 const { slug } = Astro.params;
 const db = Astro.locals.runtime?.env?.DB;
@@ -18,7 +18,15 @@ if (db) {
 
 if (!post) return Astro.redirect('/blog');
 
-const contentHtml = String(await marked(post.content ?? ''));
+const contentHtml = sanitizeHtml(String(await marked(post.content ?? '')), {
+  allowedTags: sanitizeHtml.defaults.allowedTags.concat(['img', 'h1', 'h2', 'h3']),
+  allowedAttributes: {
+    ...sanitizeHtml.defaults.allowedAttributes,
+    'img': ['src', 'alt', 'class'],
+    'a': ['href', 'target', 'rel'],
+    '*': ['class']
+  }
+});
 
 // Registrar visita de forma no bloqueante
 if (db) {
