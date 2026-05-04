@@ -1,0 +1,140 @@
+---
+import Base from '../../../layouts/Base.astro';
+
+const db = Astro.locals.runtime?.env?.DB;
+let pendientes: any[] = [];
+let aprobados: any[] = [];
+
+if (db) {
+  const resPendientes = await db.prepare(
+    `SELECT * FROM comments WHERE estado = 'pendiente' ORDER BY created_at DESC`
+  ).all();
+  pendientes = resPendientes.results ?? [];
+
+  const resAprobados = await db.prepare(
+    `SELECT * FROM comments WHERE estado = 'aprobado' ORDER BY created_at DESC LIMIT 50`
+  ).all();
+  aprobados = resAprobados.results ?? [];
+}
+---
+<Base title="Comentarios — Panel">
+  <main>
+    <div class="topbar">
+      <h1>Comentarios</h1>
+      <a href="/panel" class="btn-back">← Panel</a>
+    </div>
+
+    <section>
+      <h2>Pendientes ({pendientes.length})</h2>
+      {pendientes.length === 0 && <p class="empty">No hay comentarios pendientes.</p>}
+      {pendientes.map((c: any) => (
+        <div class="comment-card pendiente" id={`c-${c.id}`}>
+          <div class="comment-meta">
+            <strong>{c.autor}</strong>
+            {c.email && <span class="email">{c.email}</span>}
+            <span class="slug">/{c.slug}</span>
+            <span class="date">{new Date(c.created_at).toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+          </div>
+          <p class="comment-body">{c.contenido}</p>
+          <div class="comment-actions">
+            <button class="btn-aprobar" onclick={`moderar(${c.id}, 'aprobar')`}>✓ Aprobar</button>
+            <button class="btn-rechazar" onclick={`moderar(${c.id}, 'rechazar')`}>✕ Rechazar</button>
+            <button class="btn-delete" onclick={`borrar(${c.id})`}>Borrar</button>
+          </div>
+        </div>
+      ))}
+    </section>
+
+    <section>
+      <h2>Aprobados recientes</h2>
+      {aprobados.length === 0 && <p class="empty">No hay comentarios aprobados.</p>}
+      {aprobados.map((c: any) => (
+        <div class="comment-card aprobado" id={`c-${c.id}`}>
+          <div class="comment-meta">
+            <strong>{c.autor}</strong>
+            <span class="slug">/{c.slug}</span>
+            <span class="date">{new Date(c.created_at).toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+          </div>
+          <p class="comment-body">{c.contenido}</p>
+          <div class="comment-actions">
+            <button class="btn-delete" onclick={`borrar(${c.id})`}>Borrar</button>
+          </div>
+        </div>
+      ))}
+    </section>
+  </main>
+</Base>
+
+<script>
+  async function moderar(id: number, accion: string) {
+    const res = await fetch('/api/panel/comments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, accion }),
+    });
+    if (res.ok) {
+      document.getElementById(`c-${id}`)?.remove();
+    } else {
+      alert('Error al moderar el comentario.');
+    }
+  }
+
+  async function borrar(id: number) {
+    if (!confirm('¿Borrar este comentario? Esta acción no se puede deshacer.')) return;
+    const res = await fetch('/api/panel/comments', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    });
+    if (res.ok) {
+      document.getElementById(`c-${id}`)?.remove();
+    } else {
+      alert('Error al borrar el comentario.');
+    }
+  }
+
+  (window as any).moderar = moderar;
+  (window as any).borrar = borrar;
+</script>
+
+<style>
+  main { max-width: 860px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; }
+  h1 { font-family: var(--font-display); font-size: 2rem; font-weight: 400; letter-spacing: -0.02em; }
+  h2 { font-size: 1rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-muted); margin: 2rem 0 1rem; }
+  .btn-back { font-size: 0.9rem; color: var(--color-muted); border: 1px solid var(--color-border); padding: 0.5rem 1.25rem; border-radius: 4px; }
+  .btn-back:hover { color: var(--color-text); border-color: var(--color-text); }
+  .empty { color: var(--color-muted); font-size: 0.9rem; }
+
+  .comment-card {
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 0.75rem;
+  }
+  .comment-card.pendiente { border-left: 3px solid #f59e0b; }
+  .comment-card.aprobado { border-left: 3px solid #10b981; }
+
+  .comment-meta { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.5rem; font-size: 0.85rem; }
+  .email { color: var(--color-muted); }
+  .slug { color: #0369a1; font-size: 0.8rem; }
+  .date { color: var(--color-muted); font-size: 0.8rem; margin-left: auto; }
+  .comment-body { font-size: 0.95rem; line-height: 1.6; margin-bottom: 0.75rem; white-space: pre-wrap; }
+
+  .comment-actions { display: flex; gap: 0.5rem; }
+  .btn-aprobar, .btn-rechazar, .btn-delete {
+    font-size: 0.8rem;
+    padding: 0.3rem 0.75rem;
+    border-radius: 4px;
+    cursor: pointer;
+    border: 1px solid var(--color-border);
+    background: transparent;
+    font-family: inherit;
+  }
+  .btn-aprobar { color: #065f46; border-color: #6ee7b7; }
+  .btn-aprobar:hover { background: #d1fae5; }
+  .btn-rechazar { color: #92400e; border-color: #fcd34d; }
+  .btn-rechazar:hover { background: #fef3c7; }
+  .btn-delete { color: #dc2626; border-color: #fca5a5; }
+  .btn-delete:hover { background: #fee2e2; }
+</style>
