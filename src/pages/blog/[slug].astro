@@ -55,9 +55,19 @@ if (db) {
       await insertPromise;
     }
   } catch (e) {
-    // No bloqueamos la carga del post si falla el registro
     console.error('Error registrando visita:', e);
   }
+}
+
+// Cargar comentarios aprobados
+let comments: any[] = [];
+if (db) {
+  const res = await db.prepare(
+    `SELECT id, autor, contenido, created_at FROM comments
+     WHERE slug = ? AND estado = 'aprobado'
+     ORDER BY created_at ASC`
+  ).bind(slug).all();
+  comments = res.results ?? [];
 }
 
 const SITE_URL = 'https://aitorsanchez.pages.dev';
@@ -83,10 +93,96 @@ const ogImage = post.hero_image?.startsWith('http')
       {post.hero_image && <img src={post.hero_image} alt={post.title} class="hero-img" />}
       <div class="content" set:html={contentHtml} />
     </article>
+
+    <section class="comments-section">
+      <h2>Comentarios{comments.length > 0 ? ` (${comments.length})` : ''}</h2>
+
+      {comments.length === 0 && (
+        <p class="no-comments">Sé el primero en comentar.</p>
+      )}
+
+      {comments.map((c: any) => (
+        <div class="comment">
+          <div class="comment-meta">
+            <strong>{c.autor}</strong>
+            <span class="comment-date">
+              {new Date(c.created_at).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })}
+            </span>
+          </div>
+          <p class="comment-body">{c.contenido}</p>
+        </div>
+      ))}
+
+      <div class="comment-form">
+        <h3>Deja un comentario</h3>
+        <p class="form-note">Tu comentario será revisado antes de publicarse.</p>
+        <div id="form-success" class="form-success" style="display:none">
+          ✓ Comentario enviado. Será visible tras su revisión.
+        </div>
+        <div id="form-error" class="form-error" style="display:none">
+          Error al enviar el comentario. Inténtalo de nuevo.
+        </div>
+        <div class="form-fields">
+          <input id="autor" type="text" placeholder="Nombre *" maxlength="100" />
+          <input id="email" type="email" placeholder="Email (opcional)" maxlength="200" />
+          <textarea id="contenido" placeholder="Tu comentario *" rows="4" maxlength="2000"></textarea>
+          <button id="submit-btn" onclick="enviarComentario()">Enviar comentario</button>
+        </div>
+      </div>
+    </section>
+
     <a href="/blog" class="back">← Volver al blog</a>
   </main>
   <Footer />
 </Base>
+
+<script define:vars={{ slug }}>
+  async function enviarComentario() {
+    const autor = document.getElementById('autor').value.trim();
+    const email = document.getElementById('email').value.trim();
+    const contenido = document.getElementById('contenido').value.trim();
+    const btn = document.getElementById('submit-btn');
+    const successMsg = document.getElementById('form-success');
+    const errorMsg = document.getElementById('form-error');
+
+    successMsg.style.display = 'none';
+    errorMsg.style.display = 'none';
+
+    if (!autor || !contenido) {
+      errorMsg.textContent = 'El nombre y el comentario son obligatorios.';
+      errorMsg.style.display = 'block';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Enviando...';
+
+    try {
+      const res = await fetch('/api/comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug, autor, email, contenido }),
+      });
+
+      if (res.ok) {
+        successMsg.style.display = 'block';
+        document.getElementById('autor').value = '';
+        document.getElementById('email').value = '';
+        document.getElementById('contenido').value = '';
+      } else {
+        errorMsg.textContent = 'Error al enviar el comentario. Inténtalo de nuevo.';
+        errorMsg.style.display = 'block';
+      }
+    } catch {
+      errorMsg.textContent = 'Error de conexión. Inténtalo de nuevo.';
+      errorMsg.style.display = 'block';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Enviar comentario';
+    }
+  }
+  window.enviarComentario = enviarComentario;
+</script>
 
 <style>
   main {
@@ -111,10 +207,7 @@ const ogImage = post.hero_image?.startsWith('http')
   .content :global(h2) { font-family: var(--font-display); font-size: 1.5rem; font-weight: 400; margin: 2.5rem 0 1rem; }
   .content :global(h3) { font-size: 1.15rem; font-weight: 500; margin: 2rem 0 0.75rem; }
   .content :global(strong),
-  .content :global(b) {
-    font-weight: 800 !important;
-    color: #000;
-  }
+  .content :global(b) { font-weight: 800 !important; color: #000; }
   .content :global(p) { margin-bottom: 1.5rem; }
   .content :global(a) { text-decoration: underline; text-underline-offset: 3px; }
   .content :global(ul), .content :global(ol) { padding-left: 1.5rem; margin-bottom: 1.5rem; }
@@ -137,6 +230,82 @@ const ogImage = post.hero_image?.startsWith('http')
   .content :global(code) { font-size: 0.875rem; background: #f4f4f2; padding: 0.15em 0.4em; border-radius: 3px; }
   .content :global(pre code) { background: none; padding: 0; }
   .content :global(img) { max-width: 100%; border-radius: 6px; margin: 1rem 0; }
-  .back { font-size: 0.875rem; color: var(--color-muted); transition: color 0.2s; }
+
+  /* Comentarios */
+  .comments-section {
+    border-top: 1px solid var(--color-border);
+    padding: 2.5rem 0 3rem;
+  }
+  .comments-section h2 {
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    font-weight: 400;
+    margin-bottom: 1.5rem;
+  }
+  .no-comments { color: var(--color-muted); font-size: 0.95rem; margin-bottom: 2rem; }
+
+  .comment {
+    padding: 1.25rem 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .comment-meta { display: flex; align-items: baseline; gap: 0.75rem; margin-bottom: 0.5rem; }
+  .comment-meta strong { font-weight: 500; }
+  .comment-date { font-size: 0.8rem; color: var(--color-muted); }
+  .comment-body { font-size: 0.95rem; line-height: 1.7; white-space: pre-wrap; }
+
+  .comment-form { margin-top: 2.5rem; }
+  .comment-form h3 { font-size: 1.1rem; font-weight: 500; margin-bottom: 0.25rem; }
+  .form-note { font-size: 0.85rem; color: var(--color-muted); margin-bottom: 1.25rem; }
+
+  .form-success {
+    background: #d1fae5;
+    color: #065f46;
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+  }
+  .form-error {
+    background: #fee2e2;
+    color: #dc2626;
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+  }
+
+  .form-fields { display: flex; flex-direction: column; gap: 0.75rem; }
+  .form-fields input, .form-fields textarea {
+    width: 100%;
+    padding: 0.65rem 0.9rem;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+    background: var(--color-bg);
+    color: var(--color-text);
+    transition: border-color 0.2s;
+  }
+  .form-fields input:focus, .form-fields textarea:focus {
+    outline: none;
+    border-color: var(--color-text);
+  }
+  .form-fields textarea { resize: vertical; min-height: 100px; }
+  .form-fields button {
+    align-self: flex-start;
+    background: var(--color-text);
+    color: var(--color-bg);
+    border: none;
+    padding: 0.6rem 1.5rem;
+    border-radius: 6px;
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  .form-fields button:hover { opacity: 0.75; }
+  .form-fields button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .back { font-size: 0.875rem; color: var(--color-muted); transition: color 0.2s; display: inline-block; margin-bottom: 3rem; }
   .back:hover { color: var(--color-text); }
 </style>
