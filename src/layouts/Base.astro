@@ -44,6 +44,16 @@ const jsonLd = ogType === 'article'
       url: SITE_URL,
       author: { '@type': 'Person', name: SITE_NAME },
     };
+
+const breadcrumbLd = ogType === 'article' ? {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Inicio', item: SITE_URL },
+    { '@type': 'ListItem', position: 2, name: 'Blog', item: `${SITE_URL}/blog` },
+    { '@type': 'ListItem', position: 3, name: title, item: canonical },
+  ]
+} : null;
 ---
 <!DOCTYPE html>
 <html lang="es">
@@ -69,6 +79,7 @@ const jsonLd = ogType === 'article'
     <meta property="og:image" content={ogImage} />
     <meta property="og:image:width" content="1400" />
     <meta property="og:image:height" content="736" />
+    <meta property="og:image:alt" content={fullTitle} />
     <meta property="og:locale" content="es_ES" />
     {ogType === 'article' && pubDate && (
       <meta property="article:published_time" content={pubDate} />
@@ -85,6 +96,9 @@ const jsonLd = ogType === 'article'
 
     <!-- JSON-LD Schema.org -->
     <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+    {breadcrumbLd && (
+      <script type="application/ld+json" set:html={JSON.stringify(breadcrumbLd)} />
+    )}
 
     <!-- Fuentes -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
