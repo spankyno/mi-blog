@@ -21,12 +21,26 @@ export const POST: APIRoute = async ({ request, locals }) => {
     return new Response('Comentario demasiado largo', { status: 400 });
   }
 
+  const ip = request.headers.get('cf-connecting-ip') ?? request.headers.get('x-forwarded-for') ?? null;
+
+  // Rate limiting: máximo 3 comentarios por IP en 10 minutos
+  if (ip) {
+    const recent = await db.prepare(
+      `SELECT COUNT(*) as n FROM comments
+       WHERE ip = ? AND created_at >= datetime('now', '-10 minutes')`
+    ).bind(ip).first();
+
+    if ((recent as any)?.n >= 3) {
+      return new Response('Demasiados comentarios. Espera unos minutos.', { status: 429 });
+    }
+  }
+
   const created_at = new Date().toISOString();
 
   await db.prepare(
-    `INSERT INTO comments (slug, autor, email, contenido, created_at, estado)
-     VALUES (?, ?, ?, ?, ?, 'pendiente')`
-  ).bind(slug, autor.trim(), email?.trim() ?? null, contenido.trim(), created_at).run();
+    `INSERT INTO comments (slug, autor, email, contenido, created_at, estado, ip)
+     VALUES (?, ?, ?, ?, ?, 'pendiente', ?)`
+  ).bind(slug, autor.trim(), email?.trim() ?? null, contenido.trim(), created_at, ip).run();
 
   return new Response(JSON.stringify({ ok: true }), {
     status: 201,
