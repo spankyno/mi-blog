@@ -1,0 +1,226 @@
+---
+import Base from '../../layouts/Base.astro';
+
+const db = Astro.locals.runtime?.env?.DB;
+
+let totalVisitas = 0;
+let totalHumanas = 0;
+let totalPosts = 0;
+let totalPaises = 0;
+let topPosts: any[] = [];
+let topPaises: any[] = [];
+let porDia: any[] = [];
+let ultimas: any[] = [];
+
+const countryNames: Record<string, string> = {
+  ES: '🇪🇸 España', US: '🇺🇸 EE.UU.', BE: '🇧🇪 Bélgica', FR: '🇫🇷 Francia',
+  DE: '🇩🇪 Alemania', MX: '🇲🇽 México', AR: '🇦🇷 Argentina', GB: '🇬🇧 Reino Unido',
+  IT: '🇮🇹 Italia', PT: '🇵🇹 Portugal', BR: '🇧🇷 Brasil', CO: '🇨🇴 Colombia',
+  CL: '🇨🇱 Chile', NL: '🇳🇱 Países Bajos', PL: '🇵🇱 Polonia', SE: '🇸🇪 Suecia',
+};
+
+if (db) {
+  const [t, h, p, c] = await Promise.all([
+    db.prepare(`SELECT COUNT(*) as n FROM page_views`).first(),
+    db.prepare(`SELECT COUNT(*) as n FROM page_views WHERE is_bot = 0`).first(),
+    db.prepare(`SELECT COUNT(DISTINCT slug) as n FROM page_views WHERE is_bot = 0`).first(),
+    db.prepare(`SELECT COUNT(DISTINCT country) as n FROM page_views WHERE is_bot = 0 AND country IS NOT NULL`).first(),
+  ]);
+  totalVisitas = (t as any)?.n ?? 0;
+  totalHumanas = (h as any)?.n ?? 0;
+  totalPosts = (p as any)?.n ?? 0;
+  totalPaises = (c as any)?.n ?? 0;
+
+  const [rPosts, rPaises, rDia, rUltimas] = await Promise.all([
+    db.prepare(`SELECT slug, COUNT(*) as n FROM page_views WHERE is_bot = 0 GROUP BY slug ORDER BY n DESC LIMIT 10`).all(),
+    db.prepare(`SELECT country, COUNT(*) as n FROM page_views WHERE is_bot = 0 AND country IS NOT NULL GROUP BY country ORDER BY n DESC LIMIT 10`).all(),
+    db.prepare(`SELECT DATE(viewed_at) as dia, COUNT(*) as n FROM page_views WHERE is_bot = 0 AND viewed_at >= DATE('now', '-6 days') GROUP BY dia ORDER BY dia ASC`).all(),
+    db.prepare(`SELECT slug, country, city, viewed_at, is_bot FROM page_views ORDER BY viewed_at DESC LIMIT 20`).all(),
+  ]);
+
+  topPosts = rPosts.results ?? [];
+  topPaises = rPaises.results ?? [];
+  porDia = rDia.results ?? [];
+  ultimas = rUltimas.results ?? [];
+}
+
+const maxPosts = topPosts[0]?.n ?? 1;
+const maxPaises = topPaises[0]?.n ?? 1;
+const maxDia = Math.max(...porDia.map((d: any) => d.n), 1);
+
+// Rellenar días sin visitas
+const diasMap: Record<string, number> = {};
+porDia.forEach((d: any) => { diasMap[d.dia] = d.n; });
+const ultimos7: { dia: string; n: number; label: string }[] = [];
+const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+for (let i = 6; i >= 0; i--) {
+  const d = new Date();
+  d.setDate(d.getDate() - i);
+  const key = d.toISOString().split('T')[0];
+  ultimos7.push({ dia: key, n: diasMap[key] ?? 0, label: diasSemana[d.getDay()] });
+}
+---
+<Base title="Estadísticas — Panel">
+  <main>
+    <div class="topbar">
+      <h1>Estadísticas</h1>
+      <a href="/panel" class="btn-back">← Panel</a>
+    </div>
+
+    <!-- Tarjetas resumen -->
+    <div class="cards">
+      <div class="card">
+        <p class="card-label">Visitas totales</p>
+        <p class="card-value">{totalVisitas}</p>
+      </div>
+      <div class="card">
+        <p class="card-label">Visitas humanas</p>
+        <p class="card-value">{totalHumanas}</p>
+      </div>
+      <div class="card">
+        <p class="card-label">Posts visitados</p>
+        <p class="card-value">{totalPosts}</p>
+      </div>
+      <div class="card">
+        <p class="card-label">Países</p>
+        <p class="card-value">{totalPaises}</p>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <!-- Top posts -->
+      <div class="box">
+        <h2>Posts más leídos</h2>
+        {topPosts.length === 0 && <p class="empty">Sin datos todavía.</p>}
+        {topPosts.map((p: any) => (
+          <div class="bar-row">
+            <div class="bar-info">
+              <span class="bar-label" title={p.slug}>{p.slug}</span>
+              <span class="bar-count">{p.n}</span>
+            </div>
+            <div class="bar-track">
+              <div class="bar-fill bar-purple" style={`width: ${Math.round((p.n / maxPosts) * 100)}%`}></div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div>
+        <!-- Top países -->
+        <div class="box" style="margin-bottom: 1.25rem;">
+          <h2>Visitas por país</h2>
+          {topPaises.length === 0 && <p class="empty">Sin datos todavía.</p>}
+          {topPaises.map((p: any) => (
+            <div class="bar-row">
+              <div class="bar-info">
+                <span class="bar-label">{countryNames[p.country] ?? p.country}</span>
+                <span class="bar-count">{p.n}</span>
+              </div>
+              <div class="bar-track">
+                <div class="bar-fill bar-green" style={`width: ${Math.round((p.n / maxPaises) * 100)}%`}></div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <!-- Visitas por día -->
+        <div class="box">
+          <h2>Últimos 7 días</h2>
+          <div class="chart">
+            {ultimos7.map((d) => (
+              <div class="chart-col">
+                <span class="chart-val">{d.n > 0 ? d.n : ''}</span>
+                <div class="chart-bar-wrap">
+                  <div
+                    class="chart-bar"
+                    style={`height: ${d.n > 0 ? Math.max(8, Math.round((d.n / maxDia) * 80)) : 2}px; opacity: ${d.n > 0 ? 1 : 0.2}`}
+                  ></div>
+                </div>
+                <span class="chart-label">{d.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Últimas visitas -->
+    <div class="box" style="margin-top: 1.25rem;">
+      <h2>Últimas visitas</h2>
+      {ultimas.length === 0 && <p class="empty">Sin datos todavía.</p>}
+      {ultimas.length > 0 && (
+        <table>
+          <thead>
+            <tr>
+              <th>Post</th>
+              <th>País</th>
+              <th>Ciudad</th>
+              <th>Fecha</th>
+              <th>Bot</th>
+            </tr>
+          </thead>
+          <tbody>
+            {ultimas.map((v: any) => (
+              <tr>
+                <td class="td-slug" title={v.slug}>{v.slug}</td>
+                <td>{v.country ? (countryNames[v.country] ?? v.country) : '—'}</td>
+                <td>{v.city ?? '—'}</td>
+                <td class="td-date">{new Date(v.viewed_at).toLocaleDateString('es-ES', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+                <td>{v.is_bot ? <span class="badge-bot">bot</span> : '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  </main>
+</Base>
+
+<style>
+  main { max-width: 860px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; }
+  h1 { font-family: var(--font-display); font-size: 2rem; font-weight: 400; letter-spacing: -0.02em; }
+  .btn-back { font-size: 0.9rem; color: var(--color-muted); border: 1px solid var(--color-border); padding: 0.5rem 1.25rem; border-radius: 4px; transition: color 0.2s, border-color 0.2s; }
+  .btn-back:hover { color: var(--color-text); border-color: var(--color-text); }
+
+  .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
+  .card { background: #f5f5f2; border-radius: 8px; padding: 1rem 1.25rem; }
+  .card-label { font-size: 0.8rem; color: var(--color-muted); margin-bottom: 0.25rem; }
+  .card-value { font-size: 1.75rem; font-weight: 500; letter-spacing: -0.02em; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
+
+  .box { background: #fff; border: 1px solid var(--color-border); border-radius: 8px; padding: 1.25rem; }
+  h2 { font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; color: var(--color-muted); margin-bottom: 1rem; }
+  .empty { font-size: 0.9rem; color: var(--color-muted); }
+
+  .bar-row { margin-bottom: 0.65rem; }
+  .bar-info { display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 3px; }
+  .bar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 80%; color: var(--color-text); }
+  .bar-count { font-weight: 500; color: var(--color-text); }
+  .bar-track { background: var(--color-border); border-radius: 4px; height: 4px; }
+  .bar-fill { height: 4px; border-radius: 4px; min-width: 4px; }
+  .bar-purple { background: #6d63d4; }
+  .bar-green { background: #0f6e56; }
+
+  .chart { display: flex; align-items: flex-end; gap: 6px; height: 110px; padding-top: 1.5rem; }
+  .chart-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end; }
+  .chart-val { font-size: 10px; color: var(--color-muted); height: 14px; }
+  .chart-bar-wrap { display: flex; align-items: flex-end; width: 100%; justify-content: center; }
+  .chart-bar { background: #6d63d4; border-radius: 3px 3px 0 0; width: 100%; transition: height 0.3s; }
+  .chart-label { font-size: 10px; color: var(--color-muted); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 2px solid var(--color-border); color: var(--color-muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500; }
+  td { padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--color-border); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #f9f9f7; }
+  .td-slug { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .td-date { color: var(--color-muted); white-space: nowrap; }
+  .badge-bot { font-size: 0.7rem; background: #fef3c7; color: #92400e; padding: 0.15rem 0.5rem; border-radius: 99px; font-weight: 500; }
+
+  @media (max-width: 600px) {
+    .cards { grid-template-columns: repeat(2, 1fr); }
+    .grid-2 { grid-template-columns: 1fr; }
+  }
+</style>
