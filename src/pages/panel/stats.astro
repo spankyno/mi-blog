@@ -10,6 +10,7 @@ let totalPaises = 0;
 let topPosts: any[] = [];
 let topPaises: any[] = [];
 let porDia: any[] = [];
+let porMes: any[] = [];
 let ultimas: any[] = [];
 
 const countryNames: Record<string, string> = {
@@ -31,16 +32,18 @@ if (db) {
   totalPosts = (p as any)?.n ?? 0;
   totalPaises = (c as any)?.n ?? 0;
 
-  const [rPosts, rPaises, rDia, rUltimas] = await Promise.all([
+  const [rPosts, rPaises, rDia, rMes, rUltimas] = await Promise.all([
     db.prepare(`SELECT slug, COUNT(*) as n FROM page_views WHERE is_bot = 0 GROUP BY slug ORDER BY n DESC LIMIT 10`).all(),
     db.prepare(`SELECT country, COUNT(*) as n FROM page_views WHERE is_bot = 0 AND country IS NOT NULL GROUP BY country ORDER BY n DESC LIMIT 10`).all(),
     db.prepare(`SELECT DATE(viewed_at) as dia, COUNT(*) as n FROM page_views WHERE is_bot = 0 AND viewed_at >= DATE('now', '-6 days') GROUP BY dia ORDER BY dia ASC`).all(),
+    db.prepare(`SELECT STRFTIME('%Y-%m', viewed_at) as mes, COUNT(*) as n FROM page_views WHERE is_bot = 0 AND viewed_at >= DATE('now', '-11 months', 'start of month') GROUP BY mes ORDER BY mes ASC`).all(),
     db.prepare(`SELECT slug, country, city, viewed_at, is_bot FROM page_views ORDER BY viewed_at DESC LIMIT 20`).all(),
   ]);
 
   topPosts = rPosts.results ?? [];
   topPaises = rPaises.results ?? [];
   porDia = rDia.results ?? [];
+  porMes = rMes.results ?? [];
   ultimas = rUltimas.results ?? [];
 }
 
@@ -59,6 +62,20 @@ for (let i = 6; i >= 0; i--) {
   const key = d.toISOString().split('T')[0];
   ultimos7.push({ dia: key, n: diasMap[key] ?? 0, label: diasSemana[d.getDay()] });
 }
+
+// Rellenar meses sin visitas (últimos 12 meses)
+const mesesMap: Record<string, number> = {};
+porMes.forEach((m: any) => { mesesMap[m.mes] = m.n; });
+const ultimos12: { mes: string; n: number; label: string }[] = [];
+const mesesNombre = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+for (let i = 11; i >= 0; i--) {
+  const d = new Date();
+  d.setDate(1);
+  d.setMonth(d.getMonth() - i);
+  const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  ultimos12.push({ mes: key, n: mesesMap[key] ?? 0, label: mesesNombre[d.getMonth()] });
+}
+const maxMes = Math.max(...ultimos12.map(m => m.n), 1);
 ---
 <Base title="Estadísticas — Panel">
   <main>
@@ -144,6 +161,25 @@ for (let i = 6; i >= 0; i--) {
       </div>
     </div>
 
+    <!-- Visitas por mes -->
+    <div class="box" style="margin-top: 1.25rem;">
+      <h2>Últimos 12 meses</h2>
+      <div class="chart chart-wide">
+        {ultimos12.map((m) => (
+          <div class="chart-col">
+            <span class="chart-val">{m.n > 0 ? m.n : ''}</span>
+            <div class="chart-bar-wrap">
+              <div
+                class="chart-bar bar-month"
+                style={`height: ${m.n > 0 ? Math.max(8, Math.round((m.n / maxMes) * 100)) : 2}px; opacity: ${m.n > 0 ? 1 : 0.15}`}
+              ></div>
+            </div>
+            <span class="chart-label">{m.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+
     <!-- Últimas visitas -->
     <div class="box" style="margin-top: 1.25rem;">
       <h2>Últimas visitas</h2>
@@ -204,10 +240,12 @@ for (let i = 6; i >= 0; i--) {
   .bar-green { background: #0f6e56; }
 
   .chart { display: flex; align-items: flex-end; gap: 6px; height: 110px; padding-top: 1.5rem; }
+  .chart-wide { height: 130px; gap: 4px; }
   .chart-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end; }
   .chart-val { font-size: 10px; color: var(--color-muted); height: 14px; }
   .chart-bar-wrap { display: flex; align-items: flex-end; width: 100%; justify-content: center; }
   .chart-bar { background: #6d63d4; border-radius: 3px 3px 0 0; width: 100%; transition: height 0.3s; }
+  .bar-month { background: #0f6e56; }
   .chart-label { font-size: 10px; color: var(--color-muted); }
 
   table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
