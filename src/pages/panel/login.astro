@@ -1,0 +1,172 @@
+---
+// Si ya tiene sesión válida, redirigir al panel
+// (el middleware ya maneja esto, pero por si acaso)
+---
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Acceso — Panel</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --font-display: 'DM Serif Display', serif;
+      --font-body: 'DM Sans', sans-serif;
+      --color-bg: #fafaf8;
+      --color-text: #1a1a18;
+      --color-muted: #6b6b67;
+      --color-border: #e5e5e0;
+    }
+    body {
+      font-family: var(--font-body);
+      background: var(--color-bg);
+      color: var(--color-text);
+      font-size: 16px;
+      line-height: 1.6;
+      font-weight: 300;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .card {
+      width: min(90%, 380px);
+      padding: 2.5rem 2rem;
+      background: white;
+      border: 1px solid var(--color-border);
+      border-radius: 12px;
+    }
+    h1 {
+      font-family: var(--font-display);
+      font-size: 1.75rem;
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.25rem;
+    }
+    .subtitle {
+      font-size: 0.875rem;
+      color: var(--color-muted);
+      margin-bottom: 2rem;
+    }
+    .fields { display: flex; flex-direction: column; gap: 1rem; }
+    label {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: var(--color-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    input {
+      font-family: var(--font-body);
+      font-size: 0.95rem;
+      font-weight: 300;
+      color: var(--color-text);
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      border-radius: 6px;
+      padding: 0.65rem 0.9rem;
+      transition: border-color 0.2s;
+      width: 100%;
+    }
+    input:focus { outline: none; border-color: var(--color-text); }
+    .error {
+      background: #fee2e2;
+      color: #dc2626;
+      padding: 0.65rem 0.9rem;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      display: none;
+    }
+    .error.visible { display: block; }
+    button[type="submit"] {
+      width: 100%;
+      background: var(--color-text);
+      color: var(--color-bg);
+      border: none;
+      padding: 0.75rem;
+      font-size: 0.95rem;
+      font-family: var(--font-body);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: opacity 0.2s;
+      margin-top: 0.5rem;
+    }
+    button[type="submit"]:hover { opacity: 0.75; }
+    button[type="submit"]:disabled { opacity: 0.5; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Panel</h1>
+    <p class="subtitle">Acceso restringido</p>
+    <div class="fields">
+      <div id="error-msg" class="error"></div>
+      <label>
+        Usuario
+        <input type="text" id="user" autocomplete="username" autofocus />
+      </label>
+      <label>
+        Contraseña
+        <input type="password" id="pass" autocomplete="current-password" />
+      </label>
+      <button type="submit" id="submit-btn" onclick="doLogin()">Entrar</button>
+    </div>
+  </div>
+
+  <script>
+    async function doLogin() {
+      const user = (document.getElementById('user') as HTMLInputElement).value.trim();
+      const pass = (document.getElementById('pass') as HTMLInputElement).value;
+      const btn = document.getElementById('submit-btn') as HTMLButtonElement;
+      const errorMsg = document.getElementById('error-msg') as HTMLDivElement;
+
+      errorMsg.classList.remove('visible');
+
+      if (!user || !pass) {
+        errorMsg.textContent = 'Introduce usuario y contraseña.';
+        errorMsg.classList.add('visible');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Comprobando...';
+
+      try {
+        const res = await fetch('/api/panel/auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user, pass }),
+        });
+
+        if (res.ok) {
+          window.location.href = '/panel';
+        } else {
+          const data = await res.json();
+          errorMsg.textContent = data.error ?? 'Error de acceso.';
+          errorMsg.classList.add('visible');
+          btn.disabled = false;
+          btn.textContent = 'Entrar';
+        }
+      } catch {
+        errorMsg.textContent = 'Error de conexión. Inténtalo de nuevo.';
+        errorMsg.classList.add('visible');
+        btn.disabled = false;
+        btn.textContent = 'Entrar';
+      }
+    }
+
+    // Login con Enter
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') doLogin();
+    });
+  </script>
+</body>
+</html>
