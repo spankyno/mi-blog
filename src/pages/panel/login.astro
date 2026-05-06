@@ -117,7 +117,7 @@
         Contraseña
         <input type="password" id="pass" autocomplete="current-password" />
       </label>
-      <button type="submit" id="submit-btn" onclick="doLogin()">Entrar</button>
+      <button type="submit" id="submit-btn">Entrar</button>
     </div>
   </div>
 
@@ -167,6 +167,9 @@
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') doLogin();
     });
+
+    // Login con botón
+    document.getElementById('submit-btn')?.addEventListener('click', doLogin);
   </script>
 </body>
 </html>
