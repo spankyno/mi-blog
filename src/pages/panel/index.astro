@@ -4,11 +4,37 @@ import Base from '../../layouts/Base.astro';
 const db = Astro.locals.runtime?.env?.DB;
 let posts = [];
 
+// Leer parámetros de ordenación
+const url = new URL(Astro.request.url);
+const sortParam = url.searchParams.get('sort') ?? 'pub_date';
+const dirParam = url.searchParams.get('dir') ?? 'desc';
+
+// Columnas permitidas para evitar SQL injection
+const allowedSort: Record<string, string> = {
+  title: 'title',
+  pub_date: 'pub_date',
+  estado: 'draft',
+};
+const sortCol = allowedSort[sortParam] ?? 'pub_date';
+const sortDir = dirParam === 'asc' ? 'ASC' : 'DESC';
+
 if (db) {
   const result = await db.prepare(
-    `SELECT slug, title, pub_date, draft FROM posts ORDER BY pub_date DESC`
+    `SELECT slug, title, pub_date, draft FROM posts ORDER BY ${sortCol} ${sortDir}`
   ).all();
   posts = result.results ?? [];
+}
+
+// Función para generar URL de ordenación
+function sortUrl(col: string) {
+  const newDir = sortParam === col && dirParam === 'asc' ? 'desc' : 'asc';
+  return `/panel?sort=${col}&dir=${newDir}`;
+}
+
+// Flecha indicadora
+function arrow(col: string) {
+  if (sortParam !== col) return '';
+  return dirParam === 'asc' ? ' ↑' : ' ↓';
 }
 ---
 <Base title="Panel — Aitor Sánchez">
@@ -27,9 +53,9 @@ if (db) {
     <table>
       <thead>
         <tr>
-          <th>Título</th>
-          <th>Fecha</th>
-          <th>Estado</th>
+          <th><a href={sortUrl('title')} class={`sort-link ${sortParam === 'title' ? 'active' : ''}`}>Título{arrow('title')}</a></th>
+          <th><a href={sortUrl('pub_date')} class={`sort-link ${sortParam === 'pub_date' ? 'active' : ''}`}>Fecha{arrow('pub_date')}</a></th>
+          <th><a href={sortUrl('estado')} class={`sort-link ${sortParam === 'estado' ? 'active' : ''}`}>Estado{arrow('estado')}</a></th>
           <th>Acciones</th>
         </tr>
       </thead>
@@ -156,6 +182,17 @@ if (db) {
     text-transform: uppercase;
     letter-spacing: 0.05em;
   }
+  .sort-link {
+    color: var(--color-muted);
+    text-decoration: none;
+    transition: color 0.15s;
+    font-weight: 500;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .sort-link:hover { color: var(--color-text); }
+  .sort-link.active { color: var(--color-text); }
   td {
     padding: 0.9rem 1rem;
     border-bottom: 1px solid var(--color-border);
