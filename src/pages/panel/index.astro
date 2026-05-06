@@ -91,6 +91,31 @@ function arrow(col: string) {
         )}
       </tbody>
     </table>
+
+    <!-- Exportar datos -->
+    <div class="export-section">
+      <h2>Exportar datos</h2>
+      <div class="export-buttons">
+        <a href="/api/panel/export?tabla=posts" class="btn-export">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>
+          </svg>
+          Posts
+        </a>
+        <a href="/api/panel/export?tabla=comments" class="btn-export">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>
+          </svg>
+          Comentarios
+        </a>
+        <a href="/api/panel/export?tabla=page_views" class="btn-export">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>
+          </svg>
+          Visitas
+        </a>
+      </div>
+    </div>
   </main>
 </Base>
 
@@ -250,4 +275,33 @@ function arrow(col: string) {
   .btn-delete:hover { background: #fee2e2; }
 
   .empty { color: var(--color-muted); padding: 2rem 1rem; }
+
+  /* Exportar */
+  .export-section {
+    margin-top: 3rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--color-border);
+  }
+  .export-section h2 {
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-muted);
+    margin-bottom: 1rem;
+  }
+  .export-buttons { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+  .btn-export {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    color: var(--color-muted);
+    border: 1px solid var(--color-border);
+    padding: 0.45rem 1rem;
+    border-radius: 4px;
+    text-decoration: none;
+    transition: color 0.2s, border-color 0.2s;
+  }
+  .btn-export:hover { color: var(--color-text); border-color: var(--color-text); }
 </style>
