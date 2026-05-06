@@ -10,8 +10,20 @@ interface Props {
 
 const SITE_URL = 'https://aitorsanchez.pages.dev';
 const SITE_NAME = 'Aitor Sánchez Gutiérrez';
+const AUTHOR_IMAGE = `${SITE_URL}/images/AitorSanchez.webp`;
 const DEFAULT_DESC = 'Reflexiones sobre sociedad, tecnología y estilo de vida: desde la administración pública y la desinformación digital hasta la felicidad, el consumo, críticas sociales y relatos creativos.';
 const DEFAULT_OG_IMAGE = `${SITE_URL}/images/foto-portada.webp`;
+
+const author = {
+  '@type': 'Person',
+  name: SITE_NAME,
+  url: SITE_URL,
+  image: AUTHOR_IMAGE,
+  sameAs: [
+    'https://aitor-blog-contacto.vercel.app/',
+    'https://aitorhub.vercel.app/',
+  ],
+};
 
 const {
   title,
@@ -31,8 +43,8 @@ const jsonLd = ogType === 'article'
       headline: title,
       description,
       image: ogImage,
-      author: { '@type': 'Person', name: SITE_NAME, url: SITE_URL },
-      publisher: { '@type': 'Person', name: SITE_NAME, url: SITE_URL },
+      author,
+      publisher: author,
       url: canonical,
       ...(pubDate ? { datePublished: pubDate } : {}),
     }
@@ -42,8 +54,21 @@ const jsonLd = ogType === 'article'
       name: SITE_NAME,
       description: DEFAULT_DESC,
       url: SITE_URL,
-      author: { '@type': 'Person', name: SITE_NAME },
+      author,
     };
+
+const personLd = ogType !== 'article' ? {
+  '@context': 'https://schema.org',
+  '@type': 'Person',
+  name: SITE_NAME,
+  url: SITE_URL,
+  image: AUTHOR_IMAGE,
+  description: DEFAULT_DESC,
+  sameAs: [
+    'https://aitor-blog-contacto.vercel.app/',
+    'https://aitorhub.vercel.app/',
+  ],
+} : null;
 
 const breadcrumbLd = ogType === 'article' ? {
   '@context': 'https://schema.org',
@@ -98,6 +123,9 @@ const breadcrumbLd = ogType === 'article' ? {
     <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
     {breadcrumbLd && (
       <script type="application/ld+json" set:html={JSON.stringify(breadcrumbLd)} />
+    )}
+    {personLd && (
+      <script type="application/ld+json" set:html={JSON.stringify(personLd)} />
     )}
 
     <!-- Fuentes -->
