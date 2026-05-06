@@ -3,6 +3,7 @@ import Base from '../../layouts/Base.astro';
 
 const db = Astro.locals.runtime?.env?.DB;
 let posts = [];
+let pendientes = 0;
 
 // Leer parámetros de ordenación
 const url = new URL(Astro.request.url);
@@ -19,10 +20,12 @@ const sortCol = allowedSort[sortParam] ?? 'pub_date';
 const sortDir = dirParam === 'asc' ? 'ASC' : 'DESC';
 
 if (db) {
-  const result = await db.prepare(
-    `SELECT slug, title, pub_date, draft FROM posts ORDER BY ${sortCol} ${sortDir}`
-  ).all();
-  posts = result.results ?? [];
+  const [rPosts, rPendientes] = await Promise.all([
+    db.prepare(`SELECT slug, title, pub_date, draft FROM posts ORDER BY ${sortCol} ${sortDir}`).all(),
+    db.prepare(`SELECT COUNT(*) as n FROM comments WHERE estado = 'pendiente'`).first(),
+  ]);
+  posts = rPosts.results ?? [];
+  pendientes = (rPendientes as any)?.n ?? 0;
 }
 
 // Función para generar URL de ordenación
@@ -43,7 +46,10 @@ function arrow(col: string) {
       <h1>Panel</h1>
       <div class="topbar-actions">
         <a href="/blog" target="_blank" class="btn-blog">Ver blog ↗</a>
-        <a href="/panel/comentarios" class="btn-blog">Comentarios</a>
+        <a href="/panel/comentarios" class="btn-blog btn-comentarios">
+          Comentarios
+          {pendientes > 0 && <span class="badge-pendientes">{pendientes}</span>}
+        </a>
         <a href="/panel/stats" class="btn-blog">Estadísticas</a>
         <a href="/panel/nuevo" class="btn-new">+ Nuevo post</a>
         <button onclick="cerrarSesion()" class="btn-logout">Cerrar sesión</button>
@@ -138,6 +144,22 @@ function arrow(col: string) {
     text-decoration: none;
   }
   .btn-blog:hover { color: var(--color-text); border-color: var(--color-text); }
+  .btn-comentarios {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .badge-pendientes {
+    background: #dc2626;
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.1rem 0.45rem;
+    border-radius: 99px;
+    line-height: 1.4;
+    min-width: 18px;
+    text-align: center;
+  }
   h1 {
     font-family: var(--font-display);
     font-size: 2rem;
