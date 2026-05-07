@@ -95,7 +95,15 @@ const shareEmail = `mailto:?subject=${encodeURIComponent(post.title)}&body=${enc
         <h1>{post.title}</h1>
         <p class="desc">{post.description}</p>
       </header>
-      {post.hero_image && <img src={post.hero_image} alt={post.title} class="hero-img" />}
+      {post.hero_image && (
+        <img
+          src={post.hero_image}
+          alt={post.title}
+          class="hero-img"
+          transition:name={`hero-${slug}`}
+          transition:animate="initial"
+        />
+      )}
       <div class="content" set:html={contentHtml} />
     </article>
 
@@ -263,110 +271,44 @@ const shareEmail = `mailto:?subject=${encodeURIComponent(post.title)}&body=${enc
   .content :global(img) { max-width: 100%; border-radius: 6px; margin: 1rem 0; }
 
   /* Compartir */
-  .share-section {
-    border-top: 1px solid var(--color-border);
-    padding: 1.75rem 0;
-  }
-  .share-label {
-    font-size: 0.8rem;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--color-muted);
-    margin-bottom: 0.9rem;
-    font-weight: 500;
-  }
+  .share-section { border-top: 1px solid var(--color-border); padding: 1.75rem 0; }
+  .share-label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--color-muted); margin-bottom: 0.9rem; font-weight: 500; }
   .share-buttons { display: flex; gap: 0.75rem; flex-wrap: wrap; }
-  .share-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    border-radius: 6px;
-    font-size: 0.875rem;
-    font-weight: 500;
-    text-decoration: none;
-    transition: opacity 0.2s;
-  }
+  .share-btn { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.875rem; font-weight: 500; text-decoration: none; transition: opacity 0.2s; }
   .share-btn:hover { opacity: 0.85; }
   .share-x { background: #000; color: #fff; }
   .share-wa { background: #25D366; color: #fff; }
   .share-email { background: #f0f0ee; color: var(--color-text); border: 1px solid var(--color-border); }
 
   /* Comentarios */
-  .comments-section {
-    border-top: 1px solid var(--color-border);
-    padding: 2.5rem 0 3rem;
-  }
-  .comments-section h2 {
-    font-family: var(--font-display);
-    font-size: 1.5rem;
-    font-weight: 400;
-    margin-bottom: 1.5rem;
-  }
+  .comments-section { border-top: 1px solid var(--color-border); padding: 2.5rem 0 3rem; }
+  .comments-section h2 { font-family: var(--font-display); font-size: 1.5rem; font-weight: 400; margin-bottom: 1.5rem; }
   .no-comments { color: var(--color-muted); font-size: 0.95rem; margin-bottom: 2rem; }
-
-  .comment {
-    padding: 1.25rem 0;
-    border-bottom: 1px solid var(--color-border);
-  }
+  .comment { padding: 1.25rem 0; border-bottom: 1px solid var(--color-border); }
   .comment-meta { display: flex; align-items: baseline; gap: 0.75rem; margin-bottom: 0.5rem; }
   .comment-meta strong { font-weight: 500; }
   .comment-date { font-size: 0.8rem; color: var(--color-muted); }
   .comment-body { font-size: 0.95rem; line-height: 1.7; white-space: pre-wrap; }
-
   .comment-form { margin-top: 2.5rem; }
   .comment-form h3 { font-size: 1.1rem; font-weight: 500; margin-bottom: 0.25rem; }
   .form-note { font-size: 0.85rem; color: var(--color-muted); margin-bottom: 1.25rem; }
-
-  .form-success {
-    background: #d1fae5;
-    color: #065f46;
-    padding: 0.75rem 1rem;
-    border-radius: 6px;
-    font-size: 0.9rem;
-    margin-bottom: 1rem;
-  }
-  .form-error {
-    background: #fee2e2;
-    color: #dc2626;
-    padding: 0.75rem 1rem;
-    border-radius: 6px;
-    font-size: 0.9rem;
-    margin-bottom: 1rem;
-  }
-
+  .form-success { background: #d1fae5; color: #065f46; padding: 0.75rem 1rem; border-radius: 6px; font-size: 0.9rem; margin-bottom: 1rem; }
+  .form-error { background: #fee2e2; color: #dc2626; padding: 0.75rem 1rem; border-radius: 6px; font-size: 0.9rem; margin-bottom: 1rem; }
   .form-fields { display: flex; flex-direction: column; gap: 0.75rem; }
   .form-fields input, .form-fields textarea {
-    width: 100%;
-    padding: 0.65rem 0.9rem;
-    border: 1px solid var(--color-border);
-    border-radius: 6px;
-    font-family: var(--font-body);
-    font-size: 0.95rem;
-    background: var(--color-bg);
-    color: var(--color-text);
-    transition: border-color 0.2s;
+    width: 100%; padding: 0.65rem 0.9rem; border: 1px solid var(--color-border);
+    border-radius: 6px; font-family: var(--font-body); font-size: 0.95rem;
+    background: var(--color-bg); color: var(--color-text); transition: border-color 0.2s;
   }
-  .form-fields input:focus, .form-fields textarea:focus {
-    outline: none;
-    border-color: var(--color-text);
-  }
+  .form-fields input:focus, .form-fields textarea:focus { outline: none; border-color: var(--color-text); }
   .form-fields textarea { resize: vertical; min-height: 100px; }
   .form-fields button {
-    align-self: flex-start;
-    background: var(--color-text);
-    color: var(--color-bg);
-    border: none;
-    padding: 0.6rem 1.5rem;
-    border-radius: 6px;
-    font-family: var(--font-body);
-    font-size: 0.9rem;
-    cursor: pointer;
-    transition: opacity 0.2s;
+    align-self: flex-start; background: var(--color-text); color: var(--color-bg);
+    border: none; padding: 0.6rem 1.5rem; border-radius: 6px; font-family: var(--font-body);
+    font-size: 0.9rem; cursor: pointer; transition: opacity 0.2s;
   }
   .form-fields button:hover { opacity: 0.75; }
   .form-fields button:disabled { opacity: 0.5; cursor: not-allowed; }
-
   .back { font-size: 0.875rem; color: var(--color-muted); transition: color 0.2s; display: inline-block; margin-bottom: 3rem; }
   .back:hover { color: var(--color-text); }
 </style>

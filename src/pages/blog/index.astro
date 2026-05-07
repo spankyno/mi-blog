@@ -15,7 +15,6 @@ let total = 0;
 
 if (db) {
   if (q) {
-    // FTS5: escapamos caracteres especiales para evitar errores de sintaxis
     const ftsQuery = q.replace(/["*]/g, ' ').trim();
 
     const countResult = await db.prepare(
@@ -98,7 +97,12 @@ function pageUrl(p: number) {
           <a href={`/blog/${post.slug}`} class="post-link">
             <div class="post-thumb">
               {post.hero_image
-                ? <img src={post.hero_image} alt={post.title} />
+                ? <img
+                    src={post.hero_image}
+                    alt={post.title}
+                    transition:name={`hero-${post.slug}`}
+                    transition:animate="initial"
+                  />
                 : <div class="post-thumb-placeholder">{post.title.charAt(0)}</div>
               }
             </div>
@@ -193,7 +197,6 @@ function pageUrl(p: number) {
   .clear-search:hover { color: var(--color-text); }
   .search-info { font-size: 0.875rem; color: var(--color-muted); margin-bottom: 1.5rem; }
 
-  /* Lista con thumbnails */
   .list { list-style: none; }
   .list li { border-top: 1px solid var(--color-border); }
   .list li:last-child { border-bottom: 1px solid var(--color-border); }
@@ -247,7 +250,6 @@ function pageUrl(p: number) {
   .post-date { font-size: 0.8rem; color: var(--color-muted); white-space: nowrap; flex-shrink: 0; }
   .empty { padding: 1.25rem 0; color: var(--color-muted); border-top: 1px solid var(--color-border); }
 
-  /* Paginación */
   .pagination {
     display: flex;
     align-items: center;
