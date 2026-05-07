@@ -176,9 +176,14 @@ const breadcrumbLd = ogType === 'article' ? {
     </div>
 
     <script>
-      if (localStorage.getItem('aviso-ok')) {
-        document.getElementById('aviso-privacidad').style.display = 'none';
+      function checkAviso() {
+        if (localStorage.getItem('aviso-ok')) {
+          const el = document.getElementById('aviso-privacidad');
+          if (el) el.style.display = 'none';
+        }
       }
+      checkAviso();
+      document.addEventListener('astro:page-load', checkAviso);
     </script>
 
     <style>
