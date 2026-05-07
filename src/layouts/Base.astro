@@ -1,4 +1,6 @@
 ---
+import { ViewTransitions } from 'astro:transitions';
+
 interface Props {
   title: string;
   description?: string;
@@ -35,6 +37,7 @@ const {
 } = Astro.props;
 
 const fullTitle = title === SITE_NAME ? title : `${title} — ${SITE_NAME}`;
+const isPanel = Astro.url.pathname.startsWith('/panel');
 
 const jsonLd = ogType === 'article'
   ? {
@@ -128,6 +131,9 @@ const breadcrumbLd = ogType === 'article' ? {
       <script type="application/ld+json" set:html={JSON.stringify(personLd)} />
     )}
 
+    <!-- View Transitions — solo fuera del panel -->
+    {!isPanel && <ViewTransitions />}
+
     <!-- Fuentes -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -162,9 +168,9 @@ const breadcrumbLd = ogType === 'article' ? {
     </style>
   </head>
   <body>
-  <slot />
+    <slot />
 
-    <div id="aviso-privacidad">
+    <div id="aviso-privacidad" transition:persist>
       <p>Este sitio registra datos de acceso con fines de seguridad y estadística. No se usan cookies de tracking ni publicidad.</p>
       <button onclick="document.getElementById('aviso-privacidad').style.display='none';localStorage.setItem('aviso-ok','1')">Entendido</button>
     </div>
@@ -207,5 +213,5 @@ const breadcrumbLd = ogType === 'article' ? {
         font-weight: 500;
       }
     </style>
-  </body> 
+  </body>
 </html>
