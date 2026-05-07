@@ -134,6 +134,21 @@ const breadcrumbLd = ogType === 'article' ? {
     <!-- View Transitions — solo fuera del panel -->
     {!isPanel && <ViewTransitions />}
 
+    <!-- Google Analytics GA4 -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-BGWJGKHK8V"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-BGWJGKHK8V');
+      document.addEventListener('astro:page-load', () => {
+        gtag('event', 'page_view', {
+          page_location: window.location.href,
+          page_title: document.title,
+        });
+      });
+    </script>
+
     <!-- Fuentes -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -171,7 +186,7 @@ const breadcrumbLd = ogType === 'article' ? {
     <slot />
 
     <div id="aviso-privacidad" transition:persist>
-      <p>Este sitio registra datos de acceso con fines de seguridad y estadística. No se usan cookies de tracking ni publicidad.</p>
+      <p>Este sitio usa Google Analytics para medir el tráfico de forma anónima, y registra datos de acceso con fines de seguridad. No se usan cookies de publicidad.</p>
       <button onclick="document.getElementById('aviso-privacidad').style.display='none';localStorage.setItem('aviso-ok','1')">Entendido</button>
     </div>
 
