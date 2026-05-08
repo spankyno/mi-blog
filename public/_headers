@@ -1,7 +1,31 @@
+/*
+  # Fuerza HTTPS y lo recuerda 1 año. includeSubDomains cubre subdominios
+  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+
+  # Evita clickjacking — nadie puede embeber el blog en un iframe
+  X-Frame-Options: DENY
+
+  # El navegador no adivina el tipo de fichero — previene MIME sniffing
+  X-Content-Type-Options: nosniff
+
+  # Solo envía el dominio como referrer en navegación externa
+  Referrer-Policy: strict-origin-when-cross-origin
+
+  # Deshabilita APIs del navegador que no usas
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), bluetooth=()
+
+  # CSP principal — define qué puede cargar cada página
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com https://uicdn.toast.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://uicdn.toast.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests
+
 /panel/*
+  # Sin caché en el panel
   Cache-Control: no-store, no-cache, must-revalidate
   Pragma: no-cache
+
+  # CSP más permisiva en el panel para Toast UI y recursos del editor
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://uicdn.toast.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://uicdn.toast.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://www.google-analytics.com https://analytics.google.com; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'
 
 /panel
   Cache-Control: no-store, no-cache, must-revalidate
   Pragma: no-cache
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://uicdn.toast.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://uicdn.toast.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://www.google-analytics.com https://analytics.google.com; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'
