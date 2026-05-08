@@ -16,6 +16,7 @@ Blog personal con panel de administración propio, construido sobre Astro y desp
 | Despliegue | [Cloudflare Pages](https://pages.cloudflare.com) |
 | Adapter | `@astrojs/cloudflare` |
 | Markdown | `marked` + `sanitize-html` |
+| Analytics | Google Analytics 4 |
 | Tipado | TypeScript |
 
 ---
@@ -26,29 +27,49 @@ Blog personal con panel de administración propio, construido sobre Astro y desp
 - Listado de posts con paginación (10 por página)
 - Búsqueda full-text con FTS5 y relevancia BM25
 - Post individual con renderizado de Markdown sanitizado
-- Sistema de comentarios con moderación previa
+- Sistema de comentarios con moderación previa y rate limiting
 - Contador de visitas (IP, país, región, ciudad, user-agent)
+- Botones de compartir en X, WhatsApp y Email
+- View Transitions entre páginas para navegación fluida
 - RSS feed en `/rss.xml`
 - Sitemap dinámico en `/sitemap.xml` con `lastmod`
 
+### Home
+- Grid de 6 tarjetas premium con el post más reciente destacado en 2 columnas
+- Animación de entrada escalonada
+- Hover con elevación y sombra índigo
+- Transición animada de imagen desde la lista al post
+
 ### SEO
 - Meta tags completos (title, description, canonical)
-- Open Graph y Twitter Card por página
-- JSON-LD Schema.org (`BlogPosting`, `BreadcrumbList`)
+- Open Graph y Twitter Card por página incluyendo `og:image:alt`
+- JSON-LD Schema.org (`BlogPosting`, `BreadcrumbList`, `Person`)
+- Foto del autor en JSON-LD para Knowledge Panel de Google
 - `robots.txt` con bloqueo del panel
 - Google Search Console verificado
 - RSS autodescubrimiento en `<head>`
+- Google Analytics 4 con pageview tracking en View Transitions
+
+### Seguridad
+- Autenticación JWT con página de login propia (`/panel/login`)
+- Sesiones de 8 horas con expiración automática
+- Rate limiting en login (5 intentos por IP cada 15 minutos)
+- Cabeceras de seguridad vía middleware: HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy
+- CSP diferenciada entre blog público y panel de administración
+- Sanitización XSS con `sanitize-html` en renderizado de Markdown
 
 ### Panel de administración (`/panel`)
-Protegido por Basic Auth via middleware de Cloudflare Workers.
+Protegido por JWT. Botón de cerrar sesión incluido.
 
-- **Posts** — crear, editar, borrar, marcar como borrador, previsualizar
-- **Comentarios** — lista de pendientes con aprobar/rechazar/borrar
-- **Estadísticas** — visitas por post, por país, por día, últimas visitas
+- **Posts** — crear, editar, borrar, marcar como borrador, previsualizar, ordenar por título/fecha/estado
+- **Comentarios** — lista de pendientes con aprobar/rechazar/borrar, badge de pendientes en el panel
+- **Estadísticas** — visitas por post, por país, por día (7 días) y por mes (12 meses), últimas visitas
+- **Exportar** — descarga de posts, comentarios o visitas en JSON
+- Iconos SVG inline en todos los botones del panel
 
 ### Privacidad
-- Banner informativo sobre registro de datos de acceso
-- Sin cookies de tracking ni publicidad
+- Banner informativo sobre uso de Google Analytics y registro de datos
+- Sin cookies de publicidad
 - IPs registradas con fines de seguridad y estadística
 
 ---
@@ -59,33 +80,32 @@ Protegido por Basic Auth via middleware de Cloudflare Workers.
 /
 ├── public/
 │   ├── images/              # Imágenes estáticas
-│   ├── _headers             # Cabeceras HTTP de Cloudflare Pages
-│   ├── _redirects           # Redirecciones
+│   ├── _headers             # Cabeceras HTTP (cache-control del panel)
+│   ├── _redirects
 │   ├── robots.txt
 │   └── favicon.svg
 │
 ├── src/
 │   ├── components/
-│   │   ├── Header.astro
+│   │   ├── Header.astro     # Navegación sticky con backdrop blur
 │   │   └── Footer.astro
 │   │
 │   ├── layouts/
-│   │   └── Base.astro       # Layout principal con SEO, OG, JSON-LD
+│   │   └── Base.astro       # Layout principal: SEO, OG, JSON-LD, GA4, ViewTransitions
+│   │
+│   ├── middleware.ts         # JWT auth + cabeceras de seguridad en todas las respuestas
 │   │
 │   ├── pages/
-│   │   ├── index.astro      # Home
-│   │   ├── contacto.astro
+│   │   ├── index.astro      # Home con grid de 6 tarjetas premium
 │   │   │
 │   │   ├── blog/
 │   │   │   ├── index.astro  # Listado con búsqueda FTS5 y paginación
-│   │   │   └── [slug].astro # Post individual + comentarios + visitas
+│   │   │   └── [slug].astro # Post + comentarios + visitas + compartir
 │   │   │
-│   │   ├── portfolio/
-│   │   │   └── index.astro
-│   │   │
-│   │   ├── panel/           # Panel de administración (protegido)
-│   │   │   ├── index.astro  # Lista de posts
-│   │   │   ├── nuevo.astro  # Crear post
+│   │   ├── panel/           # Panel de administración (protegido por JWT)
+│   │   │   ├── index.astro  # Lista de posts con ordenación + exportar
+│   │   │   ├── login.astro  # Página de login
+│   │   │   ├── nuevo.astro  # Crear post (Toast UI Editor)
 │   │   │   ├── comentarios.astro
 │   │   │   ├── stats.astro  # Estadísticas de visitas
 │   │   │   ├── editar/
@@ -94,15 +114,16 @@ Protegido por Basic Auth via middleware de Cloudflare Workers.
 │   │   │       └── [slug].astro
 │   │   │
 │   │   ├── api/
-│   │   │   ├── comments.ts          # POST — enviar comentario (público)
+│   │   │   ├── comments.ts          # POST — enviar comentario (público, con rate limiting)
 │   │   │   └── panel/
+│   │   │       ├── auth.ts          # POST — login JWT
+│   │   │       ├── logout.ts        # POST — cerrar sesión
 │   │   │       ├── comments.ts      # POST/DELETE — moderar comentarios
-│   │   │       └── posts.ts         # DELETE — borrar post
+│   │   │       ├── posts.ts         # DELETE — borrar post
+│   │   │       └── export.ts        # GET — exportar tablas a JSON
 │   │   │
 │   │   ├── rss.xml.ts       # RSS feed dinámico
 │   │   └── sitemap.xml.ts   # Sitemap dinámico
-│   │
-│   └── middleware.ts        # Basic Auth para /panel/*
 │
 ├── patch-wrangler.mjs       # Limpia wrangler.json post-build para Pages
 ├── wrangler.toml            # Configuración Cloudflare (D1 binding)
@@ -114,8 +135,6 @@ Protegido por Basic Auth via middleware de Cloudflare Workers.
 
 ## Base de datos — Cloudflare D1
 
-Tres tablas principales:
-
 ### `posts`
 ```sql
 CREATE TABLE posts (
@@ -125,8 +144,7 @@ CREATE TABLE posts (
   content     TEXT,
   pub_date    TEXT NOT NULL,
   hero_image  TEXT,
-  draft       INTEGER DEFAULT 0,
-  tags        TEXT
+  draft       INTEGER DEFAULT 0
 );
 ```
 
@@ -139,7 +157,7 @@ CREATE TABLE comments (
   email      TEXT,
   contenido  TEXT NOT NULL,
   created_at TEXT NOT NULL,
-  estado     TEXT DEFAULT 'pendiente',  -- pendiente | aprobado | rechazado
+  estado     TEXT DEFAULT 'pendiente',
   ip         TEXT
 );
 ```
@@ -160,30 +178,33 @@ CREATE TABLE page_views (
 );
 ```
 
-### Índices FTS5 (búsqueda full-text)
+### `login_attempts`
+```sql
+CREATE TABLE login_attempts (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  ip         TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  success    INTEGER DEFAULT 0
+);
+```
+
+### FTS5 — búsqueda full-text
 ```sql
 CREATE VIRTUAL TABLE posts_fts USING fts5(
   slug UNINDEXED, title, description, content,
   content='posts', content_rowid='rowid'
 );
 ```
-Con triggers de sincronización automática en INSERT, UPDATE y DELETE.
+Con triggers de sincronización automática en INSERT, UPDATE y DELETE sobre `posts`.
 
 ---
 
 ## Desarrollo local
 
 ```bash
-# Instalar dependencias
 npm install
-
-# Servidor de desarrollo (puerto 3000)
-npm run dev
-
-# Build de producción
+npm run dev       # Puerto 3000
 npm run build
-
-# Preview del build
 npm run preview
 ```
 
@@ -192,12 +213,13 @@ npm run preview
 - Cuenta en Cloudflare con D1 configurado
 
 ### Variables de entorno
-El panel de administración usa Basic Auth configurado en el middleware. Las credenciales se establecen en las variables de entorno de Cloudflare Pages:
+Configuradas en Cloudflare Pages como Secrets:
 
-```
-ADMIN_USER=tu_usuario
-ADMIN_PASS=tu_contraseña
-```
+| Variable | Descripción |
+|---|---|
+| `ADMIN_USER` | Usuario del panel |
+| `ADMIN_PASS` | Contraseña del panel |
+| `JWT_SECRET` | Clave para firmar tokens JWT (mínimo 32 caracteres) |
 
 ---
 
@@ -205,7 +227,7 @@ ADMIN_PASS=tu_contraseña
 
 El proyecto se despliega automáticamente en Cloudflare Pages con cada push a `main`.
 
-El script `patch-wrangler.mjs` se ejecuta como parte del build (`astro build && node patch-wrangler.mjs`) para limpiar el `wrangler.json` generado por el adapter y hacerlo compatible con Cloudflare Pages.
+El script `patch-wrangler.mjs` corre como parte del build (`astro build && node patch-wrangler.mjs`) para limpiar el `wrangler.json` generado por el adapter y hacerlo compatible con Cloudflare Pages.
 
 ---
 
