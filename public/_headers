@@ -1,4 +1,4 @@
-/*
+/* 
   # Fuerza HTTPS y lo recuerda 1 año. includeSubDomains cubre subdominios
   Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
 
