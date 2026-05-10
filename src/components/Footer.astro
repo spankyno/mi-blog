@@ -1,17 +1,147 @@
 ---
 const year = new Date().getFullYear();
+const db = Astro.locals.runtime?.env?.DB;
+let totalPosts = 0;
+
+if (db) {
+  const result = await db.prepare(`SELECT COUNT(*) as n FROM posts WHERE draft != 1`).first();
+  totalPosts = (result as any)?.n ?? 0;
+}
 ---
 <footer>
-  <p>© {year} Aitor Sánchez</p>
+  <div class="footer-inner">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <span class="footer-name">Aitor Sánchez Gutiérrez</span>
+        {totalPosts > 0 && (
+          <span class="footer-count">{totalPosts} artículos publicados</span>
+        )}
+      </div>
+      <nav class="footer-nav" aria-label="Enlaces del pie de página">
+        <a href="/blog">Blog</a>
+        <a href="/rss.xml" title="Feed RSS">RSS</a>
+        <a href="https://aitorhub.vercel.app/" target="_blank" rel="noopener noreferrer">Aitor's Hub</a>
+        <a href="https://aitor-blog-contacto.vercel.app/" target="_blank" rel="noopener noreferrer">Contacto</a>
+        <a href="/privacidad">Privacidad</a>
+      </nav>
+    </div>
+    <div class="footer-bottom">
+      <address class="footer-copy">
+        © {year} Aitor Sánchez Gutiérrez — Hecho con <a href="https://astro.build" target="_blank" rel="noopener noreferrer">Astro</a> y <a href="https://pages.cloudflare.com" target="_blank" rel="noopener noreferrer">Cloudflare</a>
+      </address>
+    </div>
+  </div>
 </footer>
 
 <style>
   footer {
-    border-top: 1px solid var(--color-border);
-    padding: 2rem 1.5rem;
-    text-align: center;
-    font-size: 0.85rem;
-    color: var(--color-muted);
+    position: relative;
     margin-top: 6rem;
+    padding: 2.5rem 1.5rem 2rem;
+  }
+
+  /* Separador degradado */
+  footer::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(
+      to right,
+      transparent 0%,
+      var(--color-border) 20%,
+      var(--color-border) 80%,
+      transparent 100%
+    );
+  }
+
+  /* Degradado suave encima del footer */
+  footer::after {
+    content: '';
+    position: absolute;
+    top: -3rem;
+    left: 0;
+    right: 0;
+    height: 3rem;
+    background: linear-gradient(to bottom, transparent, rgba(229, 229, 224, 0.15));
+    pointer-events: none;
+  }
+
+  .footer-inner {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .footer-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+
+  .footer-brand {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  .footer-name {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--color-text);
+    letter-spacing: -0.01em;
+  }
+
+  .footer-count {
+    font-size: 0.75rem;
+    color: var(--color-muted);
+  }
+
+  .footer-nav {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .footer-nav a {
+    font-size: 0.82rem;
+    color: var(--color-muted);
+    text-decoration: none;
+    transition: color 0.2s;
+    white-space: nowrap;
+  }
+
+  .footer-nav a:hover { color: var(--color-text); }
+
+  .footer-bottom {
+    border-top: 1px solid var(--color-border);
+    padding-top: 1.25rem;
+  }
+
+  .footer-copy {
+    font-size: 0.78rem;
+    color: var(--color-muted);
+    font-style: normal;
+  }
+
+  .footer-copy a {
+    color: var(--color-muted);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    transition: color 0.2s;
+  }
+
+  .footer-copy a:hover { color: var(--color-text); }
+
+  @media (max-width: 560px) {
+    .footer-top { flex-direction: column; align-items: flex-start; }
+    .footer-nav { gap: 1rem; }
   }
 </style>
