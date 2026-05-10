@@ -9,141 +9,93 @@ import Footer from '../components/Footer.astro';
 >
   <Header />
   <main>
-    <h1>Política de Privacidad y Protección de Datos de Carácter Personal</h1>
-    <p class="updated">Última actualización: mayo de 2026. Versión 1.2.</p>
+    <h1>Política de Privacidad y Protección de Datos</h1>
+    <p class="updated">Última actualización: mayo de 2026</p>
 
-    <div class="legal-body">
+    <section>
+      <h2>1. Responsable del tratamiento</h2>
+      <p>El responsable del tratamiento de los datos personales recogidos en este sitio web es:</p>
+      <p><strong>Aitor Sánchez Gutiérrez</strong><br />
+      Contacto: <a href="mailto:blog.cottage627@passinbox.com">blog.cottage627@passinbox.com</a></p>
+    </section>
 
-      <section>
-        <h2>1. Identificación del Responsable del Tratamiento</h2>
-        <p>En cumplimiento de lo dispuesto en el artículo 13 del Reglamento (UE) 2016/679 del Parlamento Europeo y del Consejo, de 27 de abril de 2016, relativo a la protección de las personas físicas en lo que respecta al tratamiento de datos personales y a la libre circulación de estos datos (en adelante, «RGPD»), y en la Ley Orgánica 3/2018, de 5 de diciembre, de Protección de Datos Personales y garantía de los derechos digitales (en adelante, «LOPDGDD»), se informa al usuario de los siguientes extremos:</p>
-        <p><strong>Responsable del tratamiento:</strong> Aitor Sánchez Gutiérrez, persona física de carácter privado, en adelante «el Responsable» o «el Titular».</p>
-        <p><strong>Dirección de contacto a efectos de protección de datos:</strong> <a href="mailto:blog.cottage627@passinbox.com">blog.cottage627@passinbox.com</a></p>
-        <p><strong>Ámbito territorial:</strong> Reino de España, con sujeción a la normativa europea de protección de datos de carácter personal.</p>
-        <p>El Responsable declara no estar obligado a designar un Delegado de Protección de Datos (DPD/DPO) conforme al artículo 37 del RGPD, dado el carácter personal y no sistemático del tratamiento de los datos recopilados a través del presente sitio web.</p>
-      </section>
+    <section>
+      <h2>2. Datos que se recogen</h2>
+      <p>Este sitio web recoge los siguientes datos de forma automática cuando realizas una visita:</p>
+      <ul>
+        <li><strong>Dirección IP</strong> — registrada con fines de seguridad y control de acceso.</li>
+        <li><strong>País, región y ciudad</strong> — derivados de la IP mediante la infraestructura de Cloudflare.</li>
+        <li><strong>User-agent</strong> — navegador y sistema operativo utilizados.</li>
+        <li><strong>Página visitada</strong> — el artículo o sección del blog que se ha consultado.</li>
+        <li><strong>Referrer</strong> — URL desde la que has llegado al blog, si existe.</li>
+        <li><strong>Fecha y hora de la visita.</strong></li>
+      </ul>
+      <p>Adicionalmente, si dejas un comentario, se recogen:</p>
+      <ul>
+        <li>Nombre (obligatorio)</li>
+        <li>Dirección de email (opcional)</li>
+        <li>Texto del comentario</li>
+        <li>Dirección IP del comentario</li>
+      </ul>
+    </section>
 
-      <section>
-        <h2>2. Datos Personales Objeto de Tratamiento</h2>
-        <p>El Responsable trata, con carácter general, las siguientes categorías de datos personales, obtenidos de forma automatizada o facilitados directamente por el interesado:</p>
-        <h3>2.1. Datos recogidos de forma automatizada mediante registro de acceso</h3>
-        <p>Con motivo de cada acceso al sitio web, los servidores de la plataforma Cloudflare, Inc. —encargada del tratamiento— recogen y transmiten al Responsable los siguientes datos de carácter técnico:</p>
-        <ul>
-          <li>Dirección de Protocolo de Internet (dirección IP) del dispositivo desde el que se realiza el acceso, en formato IPv4 o IPv6, según corresponda.</li>
-          <li>País, región y ciudad de origen de la conexión, derivados de la dirección IP mediante geolocalización proporcionada por la infraestructura de Cloudflare.</li>
-          <li>Agente de usuario (user-agent), que incluye información sobre el navegador web, el sistema operativo y el tipo de dispositivo empleado.</li>
-          <li>URL de referencia (referer), entendida como la dirección del recurso web desde el cual el usuario accede al presente sitio, cuando dicha información es transmitida por el navegador del interesado.</li>
-          <li>Identificador del recurso solicitado (slug o ruta del artículo o sección visitada).</li>
-          <li>Marca temporal de la solicitud, expresada en formato ISO 8601 (UTC).</li>
-          <li>Indicador de tráfico automatizado (bot), obtenido mediante análisis heurístico del agente de usuario.</li>
-        </ul>
-        <h3>2.2. Datos facilitados voluntariamente por el interesado mediante el formulario de comentarios</h3>
-        <p>El usuario que desee publicar un comentario en los artículos del sitio web deberá facilitar, como mínimo, los siguientes datos:</p>
-        <ul>
-          <li>Nombre o seudónimo (campo obligatorio).</li>
-          <li>Dirección de correo electrónico (campo opcional, no publicado).</li>
-          <li>Contenido del comentario (campo obligatorio), con un límite máximo de dos mil (2.000) caracteres.</li>
-        </ul>
-        <p>Adicionalmente, con carácter técnico, se registra la dirección IP desde la que se remite el comentario, a efectos de control de abuso y limitación de frecuencia de envío (rate limiting).</p>
-        <h3>2.3. Datos tratados mediante Google Analytics 4</h3>
-        <p>El presente sitio web utiliza el servicio Google Analytics 4, prestado por Google LLC (en adelante, «Google»), con domicilio social en 1600 Amphitheatre Parkway, Mountain View, California 94043, Estados Unidos. Dicho servicio emplea cookies y tecnologías similares para recopilar información sobre el comportamiento de navegación de los usuarios de forma agregada y seudonimizada, incluyendo, entre otros, datos de sesión, páginas visitadas, duración de la visita, tipo de dispositivo y ubicación geográfica aproximada.</p>
-      </section>
+    <section>
+      <h2>3. Finalidad del tratamiento</h2>
+      <ul>
+        <li><strong>Estadística y análisis</strong> — conocer el número de visitas, artículos más leídos y procedencia geográfica de los lectores.</li>
+        <li><strong>Seguridad</strong> — detectar accesos no autorizados, bots y actividad maliciosa.</li>
+        <li><strong>Gestión de comentarios</strong> — moderar y publicar los comentarios enviados por los lectores.</li>
+        <li><strong>Google Analytics 4</strong> — este sitio utiliza Google Analytics 4 para medir el tráfico de forma agregada. Google puede procesar datos de navegación conforme a su propia política de privacidad disponible en <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">policies.google.com/privacy</a>.</li>
+      </ul>
+    </section>
 
-      <section>
-        <h2>3. Finalidades del Tratamiento</h2>
-        <p>Los datos personales recogidos a través del presente sitio web son tratados con las siguientes finalidades:</p>
-        <ul>
-          <li><strong>Finalidad estadística y analítica:</strong> conocer el volumen de visitas, los artículos más consultados, la procedencia geográfica de los lectores y el comportamiento de navegación, con el objeto de mejorar los contenidos y la experiencia del usuario.</li>
-          <li><strong>Finalidad de seguridad:</strong> detectar, prevenir e investigar accesos no autorizados, actividad maliciosa, ataques automatizados (bots), intentos de intrusión y otras amenazas a la integridad del sistema.</li>
-          <li><strong>Gestión y moderación de comentarios:</strong> recibir, revisar, aprobar o rechazar los comentarios enviados por los usuarios, garantizando la calidad y legalidad del contenido publicado.</li>
-          <li><strong>Limitación de abuso:</strong> controlar la frecuencia de envío de comentarios y de intentos de acceso al panel de administración, mediante mecanismos de rate limiting basados en la dirección IP.</li>
-        </ul>
-      </section>
+    <section>
+      <h2>4. Base legal</h2>
+      <ul>
+        <li>El registro de visitas e IPs se basa en el <strong>interés legítimo</strong> del responsable para garantizar la seguridad del sitio (art. 6.1.f RGPD).</li>
+        <li>El uso de Google Analytics 4 se basa en el <strong>consentimiento</strong> implícito al continuar navegando tras visualizar el aviso informativo.</li>
+        <li>El tratamiento de comentarios se basa en el <strong>consentimiento</strong> del usuario al enviarlos.</li>
+      </ul>
+    </section>
 
-      <section>
-        <h2>4. Base Jurídica del Tratamiento</h2>
-        <p>El tratamiento de los datos personales descritos en la presente política se fundamenta en las siguientes bases jurídicas, conforme al artículo 6 del RGPD:</p>
-        <ul>
-          <li><strong>Interés legítimo del Responsable (art. 6.1.f RGPD):</strong> el registro de datos técnicos de acceso —dirección IP, user-agent, referer y marca temporal— se realiza al amparo del interés legítimo del Responsable en garantizar la seguridad, integridad y correcto funcionamiento del sitio web, así como en obtener estadísticas de uso de carácter general. Se ha realizado el correspondiente test de ponderación, concluyéndose que dicho interés legítimo no prevalece de forma injustificada sobre los derechos y libertades fundamentales de los interesados, habida cuenta del carácter no intrusivo de los datos recogidos y de las medidas técnicas adoptadas.</li>
-          <li><strong>Consentimiento del interesado (art. 6.1.a RGPD):</strong> el uso de Google Analytics 4 y las cookies asociadas se sustenta en el consentimiento implícito del usuario, manifestado mediante la continuación de la navegación tras haber sido informado de dicho uso a través del aviso informativo visible en el sitio web. El interesado puede revocar en cualquier momento dicho consentimiento mediante los mecanismos indicados en el apartado 8 de la presente política.</li>
-          <li><strong>Consentimiento del interesado (art. 6.1.a RGPD):</strong> el tratamiento de los datos facilitados a través del formulario de comentarios se basa en el consentimiento libre, específico, informado e inequívoco del interesado, prestado mediante el acto positivo de cumplimentar y enviar el formulario.</li>
-        </ul>
-      </section>
+    <section>
+      <h2>5. Plazo de conservación</h2>
+      <ul>
+        <li><strong>Registros de visitas</strong> — se conservan durante un máximo de 12 meses, eliminándose periódicamente los registros más antiguos.</li>
+        <li><strong>Comentarios</strong> — se conservan indefinidamente mientras el artículo esté publicado. Puedes solicitar su eliminación en cualquier momento.</li>
+      </ul>
+    </section>
 
-      <section>
-        <h2>5. Plazo de Conservación de los Datos</h2>
-        <p>Los datos personales serán conservados durante los plazos que se indican a continuación, transcurridos los cuales serán suprimidos o anonimizados:</p>
-        <ul>
-          <li><strong>Registros de acceso y datos técnicos de visita:</strong> se conservarán durante un período máximo de doce (12) meses desde su recogida, procediéndose a su eliminación o anonimización de forma periódica. Dicho plazo se establece atendiendo a los fines de seguridad y estadística que justifican su tratamiento.</li>
-          <li><strong>Comentarios aprobados:</strong> se conservarán de forma indefinida mientras el artículo al que están asociados permanezca publicado, salvo que el interesado solicite su supresión conforme al apartado 7 de la presente política.</li>
-          <li><strong>Comentarios rechazados o pendientes de moderación:</strong> podrán ser eliminados en cualquier momento por el Responsable, sin necesidad de notificación previa al interesado.</li>
-          <li><strong>Registros de intentos de acceso al panel de administración:</strong> se conservarán durante un período máximo de noventa (90) días, transcurridos los cuales serán eliminados automáticamente.</li>
-          <li><strong>Datos tratados por Google Analytics:</strong> con sujeción a la política de retención configurada en la plataforma, que no excederá de catorce (14) meses, conforme a las recomendaciones de las autoridades europeas de protección de datos.</li>
-        </ul>
-      </section>
+    <section>
+      <h2>6. Destinatarios de los datos</h2>
+      <p>Los datos se almacenan en <strong>Cloudflare D1</strong> (base de datos SQLite gestionada por Cloudflare, Inc., con servidores en la Unión Europea y Estados Unidos) y se procesan por <strong>Google Analytics</strong> (Google LLC). No se ceden datos a terceros con fines comerciales.</p>
+      <p>Cloudflare y Google actúan como encargados del tratamiento y disponen de las garantías adecuadas conforme al RGPD (cláusulas contractuales tipo y marcos de transferencia internacional).</p>
+    </section>
 
-      <section>
-        <h2>6. Destinatarios y Transferencias Internacionales de Datos</h2>
-        <p>Los datos personales objeto de tratamiento podrán ser comunicados a los siguientes destinatarios, en su condición de encargados del tratamiento:</p>
-        <ul>
-          <li><strong>Cloudflare, Inc.</strong> (101 Townsend St., San Francisco, CA 94107, EE. UU.): proveedor de la infraestructura de red, alojamiento, base de datos D1 y servicios de seguridad. Cloudflare procesa datos en centros de datos ubicados en la Unión Europea y en terceros países. Las transferencias internacionales se amparan en las Cláusulas Contractuales Tipo aprobadas por la Comisión Europea y en el Marco de Privacidad de Datos UE-EE. UU. (EU-U.S. Data Privacy Framework), conforme a la Decisión de Adecuación de la Comisión de 10 de julio de 2023.</li>
-          <li><strong>Google LLC</strong> (1600 Amphitheatre Parkway, Mountain View, CA 94043, EE. UU.): proveedor del servicio Google Analytics 4. Las transferencias internacionales se amparan en las mismas garantías indicadas para Cloudflare. La política de privacidad de Google está disponible en <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">policies.google.com/privacy</a>.</li>
-        </ul>
-        <p>No se prevén cesiones de datos a terceros con fines comerciales, publicitarios o de cualquier otra índole ajena a las finalidades descritas en la presente política.</p>
-      </section>
+    <section>
+      <h2>7. Tus derechos</h2>
+      <p>Como interesado, tienes derecho a:</p>
+      <ul>
+        <li><strong>Acceso</strong> — conocer qué datos tenemos sobre ti.</li>
+        <li><strong>Rectificación</strong> — corregir datos inexactos.</li>
+        <li><strong>Supresión</strong> — solicitar la eliminación de tus datos.</li>
+        <li><strong>Limitación</strong> — solicitar que restrinjamos el tratamiento de tus datos.</li>
+        <li><strong>Oposición</strong> — oponerte al tratamiento basado en interés legítimo.</li>
+        <li><strong>Portabilidad</strong> — recibir tus datos en formato estructurado.</li>
+      </ul>
+      <p>Puedes ejercer cualquiera de estos derechos escribiendo a <a href="mailto:blog.cottage627@passinbox.com">blog.cottage627@passinbox.com</a>. Tienes derecho a presentar una reclamación ante la <a href="https://www.aepd.es" target="_blank" rel="noopener noreferrer">Agencia Española de Protección de Datos (AEPD)</a> si consideras que el tratamiento no es conforme al RGPD.</p>
+    </section>
 
-      <section>
-        <h2>7. Derechos de los Interesados</h2>
-        <p>El interesado podrá ejercitar, en cualquier momento y de forma gratuita, los derechos reconocidos en los artículos 15 a 22 del RGPD y en los artículos 13 a 18 de la LOPDGDD, en los términos y con las limitaciones previstos en dichas normas:</p>
-        <ul>
-          <li><strong>Derecho de acceso (art. 15 RGPD):</strong> a obtener confirmación sobre si el Responsable trata datos personales que le conciernen y, en su caso, a acceder a los mismos.</li>
-          <li><strong>Derecho de rectificación (art. 16 RGPD):</strong> a obtener sin dilación indebida la rectificación de los datos personales inexactos que le conciernan.</li>
-          <li><strong>Derecho de supresión o «derecho al olvido» (art. 17 RGPD):</strong> a obtener la supresión de sus datos personales cuando, entre otros motivos, los datos ya no sean necesarios para los fines para los que fueron recogidos.</li>
-          <li><strong>Derecho a la limitación del tratamiento (art. 18 RGPD):</strong> a solicitar la limitación del tratamiento de sus datos en determinadas circunstancias.</li>
-          <li><strong>Derecho a la portabilidad de los datos (art. 20 RGPD):</strong> a recibir los datos personales que le incumban en un formato estructurado, de uso común y lectura mecánica, cuando el tratamiento esté basado en el consentimiento o en un contrato.</li>
-          <li><strong>Derecho de oposición (art. 21 RGPD):</strong> a oponerse al tratamiento de sus datos en cualquier momento, por motivos relacionados con su situación particular, cuando el tratamiento se base en el interés legítimo del Responsable.</li>
-          <li><strong>Derechos en relación con decisiones individuales automatizadas (art. 22 RGPD):</strong> a no ser objeto de una decisión basada únicamente en el tratamiento automatizado que produzca efectos jurídicos o le afecte significativamente.</li>
-        </ul>
-        <p>El ejercicio de los referidos derechos podrá realizarse mediante comunicación escrita dirigida al Responsable a la dirección de correo electrónico <a href="mailto:blog.cottage627@passinbox.com">blog.cottage627@passinbox.com</a>, adjuntando copia de un documento acreditativo de la identidad del solicitante. El Responsable responderá en el plazo máximo de un (1) mes desde la recepción de la solicitud, prorrogable por dos meses adicionales en casos de especial complejidad.</p>
-        <p>Sin perjuicio de cualquier otro recurso administrativo o acción judicial, el interesado tendrá derecho a presentar una reclamación ante la Agencia Española de Protección de Datos (AEPD), autoridad de control competente en España, con domicilio en C/ Jorge Juan, 6, 28001 Madrid, a través de su sede electrónica en <a href="https://www.aepd.es" target="_blank" rel="noopener noreferrer">www.aepd.es</a>, cuando considere que el tratamiento de sus datos personales infringe el RGPD o la LOPDGDD.</p>
-      </section>
+    <section>
+      <h2>8. Cookies</h2>
+      <p>Este sitio utiliza cookies de Google Analytics 4 para medir el tráfico de forma agregada. No se utilizan cookies de publicidad ni de seguimiento entre sitios.</p>
+      <p>Puedes desactivar las cookies de Google Analytics instalando el <a href="https://tools.google.com/dlpage/gaoptout" target="_blank" rel="noopener noreferrer">complemento de inhabilitación de Google Analytics</a> para tu navegador.</p>
+    </section>
 
-      <section>
-        <h2>8. Política de Cookies</h2>
-        <p>El presente sitio web utiliza cookies técnicas y de análisis. A continuación se detalla su uso:</p>
-        <ul>
-          <li><strong>Cookies técnicas de sesión:</strong> utilizadas exclusivamente para el funcionamiento del panel de administración del sitio web, mediante un token de autenticación JWT almacenado en una cookie HttpOnly, Secure y SameSite=Strict. Esta cookie no es accesible desde JavaScript y no tiene finalidad de seguimiento.</li>
-          <li><strong>Cookies de análisis de Google Analytics 4:</strong> utilizadas para medir el tráfico del sitio web de forma agregada. Google Analytics emplea cookies propias (como _ga, _ga_XXXXXX) con una duración de hasta veintiséis (26) meses. No se utilizan para fines publicitarios ni de remarketing.</li>
-        </ul>
-        <p>El usuario puede desactivar las cookies de Google Analytics instalando el complemento oficial de inhabilitación disponible en <a href="https://tools.google.com/dlpage/gaoptout" target="_blank" rel="noopener noreferrer">tools.google.com/dlpage/gaoptout</a>, o mediante la configuración de privacidad de su navegador web.</p>
-        <p>No se utilizan cookies de publicidad comportamental, cookies de terceros con fines de seguimiento entre sitios, ni ninguna otra tecnología de rastreo no declarada en la presente política.</p>
-      </section>
-
-      <section>
-        <h2>9. Medidas de Seguridad</h2>
-        <p>El Responsable ha adoptado las medidas técnicas y organizativas necesarias para garantizar la seguridad de los datos personales y evitar su alteración, pérdida, tratamiento o acceso no autorizado, habida cuenta del estado de la tecnología, la naturaleza de los datos almacenados y los riesgos a que están expuestos. Entre dichas medidas se encuentran:</p>
-        <ul>
-          <li>Cifrado de todas las comunicaciones mediante el protocolo HTTPS con certificado TLS válido.</li>
-          <li>Implementación de cabeceras de seguridad HTTP: Strict-Transport-Security (HSTS), Content-Security-Policy (CSP), X-Frame-Options, X-Content-Type-Options, Referrer-Policy y Permissions-Policy.</li>
-          <li>Autenticación reforzada del panel de administración mediante tokens JWT firmados con algoritmo HMAC-SHA256 y caducidad de ocho (8) horas.</li>
-          <li>Limitación de intentos de acceso al panel de administración (rate limiting) por dirección IP.</li>
-          <li>Sanitización del contenido HTML generado a partir de Markdown mediante la librería sanitize-html, con objeto de prevenir ataques de tipo Cross-Site Scripting (XSS).</li>
-          <li>Almacenamiento de datos en infraestructura de Cloudflare D1, con cifrado en reposo y en tránsito.</li>
-        </ul>
-      </section>
-
-      <section>
-        <h2>10. Modificaciones de la Política de Privacidad</h2>
-        <p>El Responsable se reserva el derecho a modificar la presente política de privacidad en cualquier momento, con el fin de adaptarla a novedades legislativas, jurisprudenciales, criterios de la Agencia Española de Protección de Datos o cambios en los servicios prestados. Cualquier modificación sustancial será comunicada mediante la actualización de la fecha de revisión que figura en el encabezado del presente documento. Se recomienda al usuario revisar periódicamente esta página.</p>
-        <p>La presente política fue redactada en lengua castellana, siendo esta la versión auténtica a todos los efectos legales.</p>
-      </section>
-
-      <section>
-        <h2>11. Legislación Aplicable y Jurisdicción</h2>
-        <p>La presente política de privacidad se rige por el Reglamento (UE) 2016/679 (RGPD), la Ley Orgánica 3/2018 (LOPDGDD), la Ley 34/2002, de 11 de julio, de Servicios de la Sociedad de la Información y de Comercio Electrónico (LSSICE), y demás normativa aplicable en el Reino de España. Para la resolución de cualquier controversia derivada de la interpretación o aplicación de la presente política, las partes se someten, con renuncia expresa a cualquier otro fuero que pudiera corresponderles, a los Juzgados y Tribunales competentes conforme a la legislación española vigente.</p>
-      </section>
-
-    </div>
+    <section>
+      <h2>9. Seguridad</h2>
+      <p>Este sitio implementa medidas técnicas de seguridad que incluyen cifrado HTTPS, cabeceras de seguridad HTTP (HSTS, CSP, X-Frame-Options), autenticación reforzada en el panel de administración y limitación de intentos de acceso.</p>
+    </section>
 
     <a href="/blog" class="back">← Volver al blog</a>
   </main>
@@ -158,44 +110,31 @@ import Footer from '../components/Footer.astro';
   }
   h1 {
     font-family: var(--font-display);
-    font-size: clamp(1.4rem, 3vw, 1.9rem);
+    font-size: clamp(1.6rem, 4vw, 2.2rem);
     font-weight: 400;
     letter-spacing: -0.02em;
     line-height: 1.2;
     margin-bottom: 0.5rem;
   }
   .updated {
-    font-size: 0.7rem;
+    font-size: 0.82rem;
     color: var(--color-muted);
-    margin-bottom: 2rem;
-    padding-bottom: 1.5rem;
+    margin-bottom: 3rem;
+    padding-bottom: 2rem;
     border-bottom: 1px solid var(--color-border);
   }
-  .legal-body {
-    font-size: 0.6rem;
-    line-height: 1.65;
-    color: var(--color-text);
-  }
-  .legal-body section { margin-bottom: 1.5rem; }
-  .legal-body h2 {
-    font-size: 0.65rem;
-    font-weight: 700;
-    margin-bottom: 0.5rem;
-    color: var(--color-text);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-  .legal-body h3 {
-    font-size: 0.62rem;
+  section { margin-bottom: 2.5rem; }
+  h2 {
+    font-size: 1.05rem;
     font-weight: 600;
-    margin: 0.75rem 0 0.35rem;
+    margin-bottom: 0.75rem;
     color: var(--color-text);
   }
-  .legal-body p { margin-bottom: 0.5rem; }
-  .legal-body ul { padding-left: 1.25rem; margin-bottom: 0.5rem; }
-  .legal-body li { margin-bottom: 0.3rem; }
-  .legal-body a { color: var(--color-text); text-decoration: underline; text-underline-offset: 2px; }
-  .legal-body a:hover { opacity: 0.7; }
+  p { margin-bottom: 0.75rem; line-height: 1.75; font-size: 0.95rem; }
+  ul { padding-left: 1.5rem; margin-bottom: 0.75rem; }
+  li { margin-bottom: 0.4rem; line-height: 1.7; font-size: 0.95rem; }
+  a { color: var(--color-text); text-decoration: underline; text-underline-offset: 3px; }
+  a:hover { opacity: 0.7; }
   .back { font-size: 0.875rem; color: var(--color-muted); transition: color 0.2s; display: inline-block; margin-top: 2rem; }
   .back:hover { color: var(--color-text); }
 </style>
