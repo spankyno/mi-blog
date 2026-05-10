@@ -28,8 +28,12 @@ const contentHtml = sanitizeHtml(String(await marked(post.content ?? '')), {
   }
 });
 
-// Registrar visita de forma no bloqueante
-if (db) {
+// Registrar visita de forma no bloqueante (ignorar prefetch de View Transitions)
+const isPrefetch = Astro.request.headers.get('Purpose') === 'prefetch' ||
+                   Astro.request.headers.get('Sec-Purpose') === 'prefetch' ||
+                   Astro.request.headers.get('X-Purpose') === 'prefetch';
+
+if (db && !isPrefetch) {
   try {
     const req = Astro.request;
     const hdrs = req.headers;
