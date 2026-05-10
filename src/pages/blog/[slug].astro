@@ -24,7 +24,7 @@ const contentHtml = sanitizeHtml(String(await marked(post.content ?? '')), {
     ...sanitizeHtml.defaults.allowedAttributes,
     'img': ['src', 'alt', 'class'],
     'a': ['href', 'target', 'rel'],
-    '*': ['class']
+    '*': ['class', 'style']
   }
 });
 
