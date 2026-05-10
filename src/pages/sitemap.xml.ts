@@ -5,6 +5,7 @@ const SITE_URL = 'https://aitorsanchez.pages.dev';
 const staticRoutes = [
   { url: '/', priority: '1.0', changefreq: 'weekly' },
   { url: '/blog', priority: '0.9', changefreq: 'daily' },
+  { url: '/privacidad', priority: '0.3', changefreq: 'yearly' },
 ];
 
 export const GET: APIRoute = async ({ locals }) => {
