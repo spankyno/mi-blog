@@ -64,7 +64,7 @@ function pageUrl(p: number) {
   <Header />
 
   <section class="blog-hero">
-    <img src="/images/foto-portada.png" alt="Blog de Aitor Sánchez" />
+    <img src="/images/foto-portada.png" alt="Blog de Aitor Sánchez" fetchpriority="high" loading="eager" />
   </section>
 
   <main>
@@ -100,6 +100,8 @@ function pageUrl(p: number) {
                 ? <img
                     src={post.hero_image}
                     alt={post.title}
+                    loading="lazy"
+                    decoding="async"
                     transition:name={`hero-${post.slug}`}
                     transition:animate="initial"
                   />
