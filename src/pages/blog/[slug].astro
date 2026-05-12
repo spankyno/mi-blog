@@ -80,10 +80,10 @@ let postSiguiente: any = null;
 if (db) {
   const [rAnterior, rSiguiente] = await Promise.all([
     db.prepare(
-      `SELECT slug, title FROM posts WHERE draft != 1 AND pub_date < ? ORDER BY pub_date DESC LIMIT 1`
+      `SELECT slug, title, hero_image FROM posts WHERE draft != 1 AND pub_date < ? ORDER BY pub_date DESC LIMIT 1`
     ).bind(post.pub_date).first(),
     db.prepare(
-      `SELECT slug, title FROM posts WHERE draft != 1 AND pub_date > ? ORDER BY pub_date ASC LIMIT 1`
+      `SELECT slug, title, hero_image FROM posts WHERE draft != 1 AND pub_date > ? ORDER BY pub_date ASC LIMIT 1`
     ).bind(post.pub_date).first(),
   ]);
   postAnterior = rAnterior ?? null;
@@ -196,20 +196,30 @@ const shareEmail = `mailto:?subject=${encodeURIComponent(post.title)}&body=${enc
         <div class="post-nav-inner">
           {postAnterior ? (
             <a href={`/blog/${postAnterior.slug}`} class="post-nav-link post-nav-prev">
-              <span class="post-nav-label">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><line x1="19" x2="5" y1="12" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
-                Anterior
-              </span>
-              <span class="post-nav-title">{postAnterior.title}</span>
+              {postAnterior.hero_image && (
+                <img src={postAnterior.hero_image} alt={postAnterior.title} class="post-nav-img" loading="lazy" />
+              )}
+              <div class="post-nav-content">
+                <span class="post-nav-label">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><line x1="19" x2="5" y1="12" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+                  Anterior
+                </span>
+                <span class="post-nav-title">{postAnterior.title}</span>
+              </div>
             </a>
           ) : <div />}
           {postSiguiente ? (
             <a href={`/blog/${postSiguiente.slug}`} class="post-nav-link post-nav-next">
-              <span class="post-nav-label">
-                Siguiente
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><line x1="5" x2="19" y1="12" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-              </span>
-              <span class="post-nav-title">{postSiguiente.title}</span>
+              {postSiguiente.hero_image && (
+                <img src={postSiguiente.hero_image} alt={postSiguiente.title} class="post-nav-img" loading="lazy" />
+              )}
+              <div class="post-nav-content">
+                <span class="post-nav-label">
+                  Siguiente
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><line x1="5" x2="19" y1="12" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                </span>
+                <span class="post-nav-title">{postSiguiente.title}</span>
+              </div>
             </a>
           ) : <div />}
         </div>
@@ -420,16 +430,28 @@ const shareEmail = `mailto:?subject=${encodeURIComponent(post.title)}&body=${enc
   .post-nav-link {
     display: flex;
     flex-direction: column;
-    gap: 0.35rem;
+    gap: 0;
     text-decoration: none;
-    padding: 1rem 1.1rem;
     border: 1px solid var(--color-border);
     border-radius: 8px;
+    overflow: hidden;
     transition: border-color 0.2s, background 0.2s;
   }
   .post-nav-link:hover {
     border-color: var(--color-text);
     background: #f9f9f7;
+  }
+  .post-nav-img {
+    width: 100%;
+    height: 100px;
+    object-fit: cover;
+    display: block;
+  }
+  .post-nav-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.85rem 1rem;
   }
   .post-nav-next { text-align: right; }
   .post-nav-label {
@@ -442,6 +464,7 @@ const shareEmail = `mailto:?subject=${encodeURIComponent(post.title)}&body=${enc
     letter-spacing: 0.07em;
     color: var(--color-muted);
   }
+  .post-nav-next .post-nav-label { justify-content: flex-end; }
   .post-nav-title {
     font-size: 0.88rem;
     font-weight: 500;
