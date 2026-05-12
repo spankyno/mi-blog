@@ -226,6 +226,14 @@ const ultimasJson = JSON.stringify(ultimas);
       {ultimas.length > 0 && (
         <div class="table-wrap">
           <table id="visitas-table">
+            <colgroup>
+              <col class="col-slug" />
+              <col class="col-country" />
+              <col class="col-city" />
+              <col class="col-ip" />
+              <col class="col-date" />
+              <col class="col-bot" />
+            </colgroup>
             <thead>
               <tr>
                 <th>Post</th>
@@ -302,15 +310,33 @@ const ultimasJson = JSON.stringify(ultimas);
       const ipVal    = v.ip ?? '—';
       const date     = formatDate(v.viewed_at);
       const botBadge = v.is_bot ? `<span class="badge-bot">bot</span>` : '—';
+      const slug     = v.slug ?? '';
+      // Escape para atributos HTML
+      const esc = s => s.replace(/"/g, '&quot;').replace(/</g, '&lt;');
+      const ipCopy = v.ip
+        ? `<span class="td-ip td-copy" data-copy="${esc(v.ip)}" title="Copiar ${esc(v.ip)}">${esc(v.ip)}</span>`
+        : '<span class="td-ip">—</span>';
       return `<tr>
-        <td class="td-slug" title="${v.slug}">${v.slug}</td>
-        <td>${country}</td>
-        <td>${city}</td>
-        <td class="td-ip">${ipVal}</td>
+        <td class="td-slug" title="${esc(slug)}">${esc(slug)}</td>
+        <td class="td-country">${country}</td>
+        <td class="td-city" title="${esc(city)}">${esc(city)}</td>
+        ${ipCopy ? `<td class="td-ip-cell">${ipCopy}</td>` : '<td class="td-ip-cell"><span class="td-ip">—</span></td>'}
         <td class="td-date">${date}</td>
-        <td>${botBadge}</td>
+        <td class="td-bot">${botBadge}</td>
       </tr>`;
     }).join('');
+
+    // Delegación de evento para copiar IP al click
+    tbody.querySelectorAll('.td-copy').forEach(el => {
+      el.addEventListener('click', () => {
+        navigator.clipboard.writeText(el.dataset.copy).then(() => {
+          const prev = el.textContent;
+          el.textContent = '✓ copiado';
+          el.style.color = '#0f6e56';
+          setTimeout(() => { el.textContent = prev; el.style.color = ''; }, 1200);
+        });
+      });
+    });
 
     if (countEl) {
       countEl.textContent = (limit > 0 && total > limit)
@@ -385,7 +411,7 @@ const ultimasJson = JSON.stringify(ultimas);
   .filter-group input[type="date"],
   .filter-group input[type="text"],
   .filter-group select {
-    font-size: 0.75rem;
+    font-size: 0.85rem;
     border: 1px solid var(--color-border);
     border-radius: 4px;
     padding: 0.4rem 0.6rem;
@@ -430,14 +456,34 @@ const ultimasJson = JSON.stringify(ultimas);
   .bar-month { background: #0f6e56; }
   .chart-label { font-size: 10px; color: var(--color-muted); }
 
-  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-  th { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 2px solid var(--color-border); color: var(--color-muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500; }
-  td { padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--color-border); vertical-align: middle; }
+  table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 0.85rem; }
+  /* Anchos de columna: Post · País · Ciudad · IP · Fecha · Bot */
+  col.col-slug    { width: 28%; }
+  col.col-country { width: 12%; }
+  col.col-city    { width: 16%; }
+  col.col-ip      { width: 18%; }
+  col.col-date    { width: 18%; }
+  col.col-bot     { width: 8%; }
+  th { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 2px solid var(--color-border); color: var(--color-muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500; overflow: hidden; }
+  td { padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--color-border); vertical-align: middle; overflow: hidden; white-space: nowrap; }
   tr:last-child td { border-bottom: none; }
   tr:hover td { background: #f9f9f7; }
-  .td-slug { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .td-ip { font-family: monospace; font-size: 0.8rem; color: var(--color-muted); white-space: nowrap; }
+  /* Celdas con truncado + tooltip nativo */
+  .td-slug, .td-city { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .td-ip-cell { overflow: hidden; }
+  .td-ip {
+    font-family: monospace; font-size: 0.8rem; color: var(--color-muted);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block;
+  }
+  .td-copy {
+    cursor: pointer;
+    border-radius: 3px;
+    transition: color 0.15s, background 0.15s;
+  }
+  .td-copy:hover { color: #6d63d4; background: rgba(109,99,212,0.07); }
+  .td-country { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .td-date { color: var(--color-muted); white-space: nowrap; }
+  .td-bot { white-space: nowrap; }
   .badge-bot { font-size: 0.7rem; background: #fef3c7; color: #92400e; padding: 0.15rem 0.5rem; border-radius: 99px; font-weight: 500; }
 
   @media (max-width: 600px) {
