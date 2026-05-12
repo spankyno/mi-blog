@@ -307,31 +307,30 @@ const ultimasJson = JSON.stringify(ultimas);
     tbody.innerHTML = shown.map(v => {
       const country  = v.country ? (COUNTRY_NAMES[v.country] ?? v.country) : '—';
       const city     = v.city ?? '—';
-      const ipVal    = v.ip ?? '—';
       const date     = formatDate(v.viewed_at);
       const botBadge = v.is_bot ? `<span class="badge-bot">bot</span>` : '—';
       const slug     = v.slug ?? '';
-      // Escape para atributos HTML
-      const esc = s => s.replace(/"/g, '&quot;').replace(/</g, '&lt;');
-      const ipCopy = v.ip
-        ? `<span class="td-ip td-copy" data-copy="${esc(v.ip)}" title="Copiar ${esc(v.ip)}">${esc(v.ip)}</span>`
-        : '<span class="td-ip">—</span>';
+      const esc = s => String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+      const ipText  = v.ip ?? '—';
+      const ipClass = v.ip ? 'td-ip-cell td-copy' : 'td-ip-cell';
+      const ipTitle = v.ip ? ` title="${esc(v.ip)}"` : '';
+      const ipData  = v.ip ? ` data-copy="${esc(v.ip)}"` : '';
       return `<tr>
         <td class="td-slug" title="${esc(slug)}">${esc(slug)}</td>
         <td class="td-country">${country}</td>
         <td class="td-city" title="${esc(city)}">${esc(city)}</td>
-        ${ipCopy ? `<td class="td-ip-cell">${ipCopy}</td>` : '<td class="td-ip-cell"><span class="td-ip">—</span></td>'}
+        <td class="${ipClass}"${ipTitle}${ipData}>${esc(ipText)}</td>
         <td class="td-date">${date}</td>
         <td class="td-bot">${botBadge}</td>
       </tr>`;
     }).join('');
 
-    // Delegación de evento para copiar IP al click
+    // Copia IP al click sobre la celda
     tbody.querySelectorAll('.td-copy').forEach(el => {
       el.addEventListener('click', () => {
         navigator.clipboard.writeText(el.dataset.copy).then(() => {
           const prev = el.textContent;
-          el.textContent = '✓ copiado';
+          el.textContent = '\u2713 copiado';
           el.style.color = '#0f6e56';
           setTimeout(() => { el.textContent = prev; el.style.color = ''; }, 1200);
         });
@@ -468,19 +467,16 @@ const ultimasJson = JSON.stringify(ultimas);
   td { padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--color-border); vertical-align: middle; overflow: hidden; white-space: nowrap; }
   tr:last-child td { border-bottom: none; }
   tr:hover td { background: #f9f9f7; }
-  /* Celdas con truncado + tooltip nativo.
-     max-width:0 es el truco estándar para forzar ellipsis en table-layout:fixed */
-  .td-slug, .td-city, .td-ip-cell, .td-country {
+  /* Truncado con ellipsis en celdas de ancho fijo.
+     max-width:0 es necesario para que table-layout:fixed aplique el recorte. */
+  .td-slug, .td-city, .td-country {
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 0;
   }
-  .td-ip-cell { font-family: monospace; font-size: 0.8rem; color: var(--color-muted); }
-  /* El span interior no debe romper el flujo */
-  .td-ip { display: contents; }
-  .td-copy {
-    cursor: pointer;
-    border-radius: 3px;
-    transition: color 0.15s, background 0.15s;
+  .td-ip-cell {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 0;
+    font-family: monospace; font-size: 0.8rem; color: var(--color-muted);
   }
+  .td-copy { cursor: pointer; transition: color 0.15s, background 0.15s; border-radius: 3px; }
   .td-copy:hover { color: #6d63d4; background: rgba(109,99,212,0.07); }
   .td-date { color: var(--color-muted); white-space: nowrap; }
   .td-bot { white-space: nowrap; }
