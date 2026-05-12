@@ -226,6 +226,14 @@ const ultimasJson = JSON.stringify(ultimas);
       {ultimas.length > 0 && (
         <div class="table-wrap">
           <table id="visitas-table">
+            <colgroup>
+              <col class="col-slug" />
+              <col class="col-country" />
+              <col class="col-city" />
+              <col class="col-ip" />
+              <col class="col-date" />
+              <col class="col-bot" />
+            </colgroup>
             <thead>
               <tr>
                 <th>Post</th>
@@ -297,22 +305,21 @@ const ultimasJson = JSON.stringify(ultimas);
     const shown = limit > 0 ? filtered.slice(0, limit) : filtered;
 
     tbody.innerHTML = shown.map(v => {
-      const country  = v.country ? (COUNTRY_NAMES[v.country] ?? v.country) : '—';
-      const city     = v.city ?? '—';
+      const esc      = s => String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+      const slug     = esc(v.slug ?? '');
+      const country  = v.country ? (COUNTRY_NAMES[v.country] ?? esc(v.country)) : '—';
+      const city     = esc(v.city ?? '—');
+      const ipText   = esc(v.ip ?? '—');
       const date     = formatDate(v.viewed_at);
       const botBadge = v.is_bot ? `<span class="badge-bot">bot</span>` : '—';
-      const slug     = v.slug ?? '';
-      const esc = s => String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
-      const ipText  = v.ip ?? '—';
-      const ipClass = v.ip ? 'td-ip-cell td-copy' : 'td-ip-cell';
-      const ipTitle = v.ip ? ` title="${esc(v.ip)}"` : '';
-      const ipData  = v.ip ? ` data-copy="${esc(v.ip)}"` : '';
+      const ipClass  = v.ip ? 'td-ip-cell td-copy' : 'td-ip-cell';
+      const ipExtra  = v.ip ? ` data-copy="${ipText}"` : '';
       return `<tr>
-        <td class="td-slug" title="${esc(slug)}">${esc(slug)}</td>
-        <td class="td-country">${country}</td>
-        <td class="td-city" title="${esc(city)}">${esc(city)}</td>
-        <td class="${ipClass}"${ipTitle}${ipData}>${esc(ipText)}</td>
-        <td class="td-date">${date}</td>
+        <td class="td-slug" title="${slug}">${slug}</td>
+        <td class="td-country" title="${country}">${country}</td>
+        <td class="td-city"    title="${city}">${city}</td>
+        <td class="${ipClass}" title="${ipText}"${ipExtra}>${ipText}</td>
+        <td class="td-date"    title="${date}">${date}</td>
         <td class="td-bot">${botBadge}</td>
       </tr>`;
     }).join('');
@@ -427,8 +434,6 @@ const ultimasJson = JSON.stringify(ultimas);
   }
   .btn-reset:hover { color: var(--color-text); border-color: var(--color-text); }
 
-  .table-wrap { overflow: hidden; }
-
   .bar-row { margin-bottom: 0.65rem; }
   .bar-info { display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 3px; }
   .bar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 80%; color: var(--color-text); }
@@ -447,36 +452,86 @@ const ultimasJson = JSON.stringify(ultimas);
   .bar-month { background: #0f6e56; }
   .chart-label { font-size: 10px; color: var(--color-muted); }
 
-  /* Tabla: anchos fijos en th, truncado garantizado */
-  .table-wrap { overflow-x: auto; }
-  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  /* ─── Tabla de visitas ─────────────────────────────────────────────────────
+     Estrategia: table-layout:fixed + width en <col> + overflow:hidden en td.
+     Es la única combinación que garantiza truncado sin scroll horizontal.
+  ──────────────────────────────────────────────────────────────────────── */
+  .table-wrap { width: 100%; overflow: hidden; }
+
+  table {
+    width: 100%;
+    table-layout: fixed;   /* CLAVE: ignora contenido, respeta anchos declarados */
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+
+  /* Anchos de columna definidos en <col> via clases —
+     con table-layout:fixed estos son los anchos reales. */
+  .col-slug    { width: 30%; }
+  .col-country { width: 11%; }
+  .col-city    { width: 13%; }
+  .col-ip      { width: 22%; }
+  .col-date    { width: 16%; }
+  .col-bot     { width: 8%;  }
+
   th {
-    text-align: left; padding: 0.5rem 0.75rem;
+    text-align: left;
+    padding: 0.5rem 0.75rem;
     border-bottom: 2px solid var(--color-border);
-    color: var(--color-muted); font-size: 0.75rem;
-    text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500;
+    color: var(--color-muted);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 500;
+    /* th también trunca para consistencia */
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
-  /* Anchos fijos directamente en th — funciona sin table-layout:fixed */
-  th:nth-child(1) { width: 220px; min-width: 220px; max-width: 220px; }
-  th:nth-child(2) { width: 110px; min-width: 110px; max-width: 110px; }
-  th:nth-child(3) { width: 110px; min-width: 110px; max-width: 110px; }
-  th:nth-child(4) { width: 160px; min-width: 160px; max-width: 160px; }
-  th:nth-child(5) { width: 130px; min-width: 130px; max-width: 130px; }
-  th:nth-child(6) { width: 50px;  min-width: 50px;  max-width: 50px; }
+
   td {
-    padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--color-border);
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--color-border);
     vertical-align: middle;
-    /* Truncado universal en todas las celdas */
-    overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
-    max-width: 0; /* necesario para que ellipsis respete el ancho del th */
+    /* Truncado garantizado: las tres propiedades son obligatorias juntas */
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
+
   tr:last-child td { border-bottom: none; }
-  tr:hover td { background: #f9f9f7; }
-  .td-ip-cell { font-family: monospace; font-size: 0.75rem; color: var(--color-muted); }
-  .td-copy { cursor: pointer; transition: color 0.15s; border-radius: 3px; }
-  .td-copy:hover { color: #6d63d4; background: rgba(109,99,212,0.07); }
+
+  /* Hover sutil: solo tinte de fondo, sin cambios bruscos */
+  tr:hover td { background: rgba(0, 0, 0, 0.025); }
+
+  /* Celda IP: monospace, ligeramente más pequeña */
+  .td-ip-cell {
+    font-family: monospace;
+    font-size: 0.78rem;
+    color: var(--color-muted);
+    letter-spacing: -0.01em;
+  }
+
+  /* IP clicable para copiar */
+  .td-copy {
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s;
+  }
+  .td-copy:hover {
+    color: #6d63d4;
+    background: rgba(109, 99, 212, 0.06);
+  }
+
   .td-date { color: var(--color-muted); }
-  .badge-bot { font-size: 0.7rem; background: #fef3c7; color: #92400e; padding: 0.15rem 0.5rem; border-radius: 99px; font-weight: 500; }
+
+  .badge-bot {
+    font-size: 0.7rem;
+    background: #fef3c7;
+    color: #92400e;
+    padding: 0.15rem 0.5rem;
+    border-radius: 99px;
+    font-weight: 500;
+  }
 
   @media (max-width: 600px) {
     .cards { grid-template-columns: repeat(2, 1fr); }
