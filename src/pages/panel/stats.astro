@@ -468,20 +468,20 @@ const ultimasJson = JSON.stringify(ultimas);
   td { padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--color-border); vertical-align: middle; overflow: hidden; white-space: nowrap; }
   tr:last-child td { border-bottom: none; }
   tr:hover td { background: #f9f9f7; }
-  /* Celdas con truncado + tooltip nativo */
-  .td-slug, .td-city { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .td-ip-cell { overflow: hidden; }
-  .td-ip {
-    font-family: monospace; font-size: 0.8rem; color: var(--color-muted);
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block;
+  /* Celdas con truncado + tooltip nativo.
+     max-width:0 es el truco estándar para forzar ellipsis en table-layout:fixed */
+  .td-slug, .td-city, .td-ip-cell, .td-country {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 0;
   }
+  .td-ip-cell { font-family: monospace; font-size: 0.8rem; color: var(--color-muted); }
+  /* El span interior no debe romper el flujo */
+  .td-ip { display: contents; }
   .td-copy {
     cursor: pointer;
     border-radius: 3px;
     transition: color 0.15s, background 0.15s;
   }
   .td-copy:hover { color: #6d63d4; background: rgba(109,99,212,0.07); }
-  .td-country { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .td-date { color: var(--color-muted); white-space: nowrap; }
   .td-bot { white-space: nowrap; }
   .badge-bot { font-size: 0.7rem; background: #fef3c7; color: #92400e; padding: 0.15rem 0.5rem; border-radius: 99px; font-weight: 500; }
