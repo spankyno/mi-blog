@@ -14,10 +14,22 @@ let porMes: any[] = [];
 let ultimas: any[] = [];
 
 const countryNames: Record<string, string> = {
-  ES: '🇪🇸 España', US: '🇺🇸 EE.UU.', BE: '🇧🇪 Bélgica', FR: '🇫🇷 Francia',
-  DE: '🇩🇪 Alemania', MX: '🇲🇽 México', AR: '🇦🇷 Argentina', GB: '🇬🇧 Reino Unido',
-  IT: '🇮🇹 Italia', PT: '🇵🇹 Portugal', BR: '🇧🇷 Brasil', CO: '🇨🇴 Colombia',
-  CL: '🇨🇱 Chile', NL: '🇳🇱 Países Bajos', PL: '🇵🇱 Polonia', SE: '🇸🇪 Suecia',
+  ES: '🇪🇸 España',
+  US: '🇺🇸 EE.UU.',
+  BE: '🇧🇪 Bélgica',
+  FR: '🇫🇷 Francia',
+  DE: '🇩🇪 Alemania',
+  MX: '🇲🇽 México',
+  AR: '🇦🇷 Argentina',
+  GB: '🇬🇧 Reino Unido',
+  IT: '🇮🇹 Italia',
+  PT: '🇵🇹 Portugal',
+  BR: '🇧🇷 Brasil',
+  CO: '🇨🇴 Colombia',
+  CL: '🇨🇱 Chile',
+  NL: '🇳🇱 Países Bajos',
+  PL: '🇵🇱 Polonia',
+  SE: '🇸🇪 Suecia',
 };
 
 if (db) {
@@ -27,17 +39,56 @@ if (db) {
     db.prepare(`SELECT COUNT(DISTINCT slug) as n FROM page_views WHERE is_bot = 0`).first(),
     db.prepare(`SELECT COUNT(DISTINCT country) as n FROM page_views WHERE is_bot = 0 AND country IS NOT NULL`).first(),
   ]);
+
   totalVisitas = (t as any)?.n ?? 0;
   totalHumanas = (h as any)?.n ?? 0;
   totalPosts = (p as any)?.n ?? 0;
   totalPaises = (c as any)?.n ?? 0;
 
   const [rPosts, rPaises, rDia, rMes, rUltimas] = await Promise.all([
-    db.prepare(`SELECT slug, COUNT(*) as n FROM page_views WHERE is_bot = 0 GROUP BY slug ORDER BY n DESC LIMIT 10`).all(),
-    db.prepare(`SELECT country, COUNT(*) as n FROM page_views WHERE is_bot = 0 AND country IS NOT NULL GROUP BY country ORDER BY n DESC LIMIT 10`).all(),
-    db.prepare(`SELECT DATE(viewed_at) as dia, COUNT(*) as n FROM page_views WHERE is_bot = 0 AND viewed_at >= DATE('now', '-6 days') GROUP BY dia ORDER BY dia ASC`).all(),
-    db.prepare(`SELECT STRFTIME('%Y-%m', viewed_at) as mes, COUNT(*) as n FROM page_views WHERE is_bot = 0 AND viewed_at >= DATE('now', '-11 months', 'start of month') GROUP BY mes ORDER BY mes ASC`).all(),
-    db.prepare(`SELECT slug, country, city, ip, viewed_at, is_bot FROM page_views ORDER BY viewed_at DESC LIMIT 500`).all(),
+    db.prepare(`
+      SELECT slug, COUNT(*) as n
+      FROM page_views
+      WHERE is_bot = 0
+      GROUP BY slug
+      ORDER BY n DESC
+      LIMIT 10
+    `).all(),
+
+    db.prepare(`
+      SELECT country, COUNT(*) as n
+      FROM page_views
+      WHERE is_bot = 0
+      AND country IS NOT NULL
+      GROUP BY country
+      ORDER BY n DESC
+      LIMIT 10
+    `).all(),
+
+    db.prepare(`
+      SELECT DATE(viewed_at) as dia, COUNT(*) as n
+      FROM page_views
+      WHERE is_bot = 0
+      AND viewed_at >= DATE('now', '-6 days')
+      GROUP BY dia
+      ORDER BY dia ASC
+    `).all(),
+
+    db.prepare(`
+      SELECT STRFTIME('%Y-%m', viewed_at) as mes, COUNT(*) as n
+      FROM page_views
+      WHERE is_bot = 0
+      AND viewed_at >= DATE('now', '-11 months', 'start of month')
+      GROUP BY mes
+      ORDER BY mes ASC
+    `).all(),
+
+    db.prepare(`
+      SELECT slug, country, city, ip, viewed_at, is_bot
+      FROM page_views
+      ORDER BY viewed_at DESC
+      LIMIT 500
+    `).all(),
   ]);
 
   topPosts = rPosts.results ?? [];
@@ -52,31 +103,56 @@ const maxPaises = topPaises[0]?.n ?? 1;
 const maxDia = Math.max(...porDia.map((d: any) => d.n), 1);
 
 const diasMap: Record<string, number> = {};
-porDia.forEach((d: any) => { diasMap[d.dia] = d.n; });
+
+porDia.forEach((d: any) => {
+  diasMap[d.dia] = d.n;
+});
+
 const ultimos7: { dia: string; n: number; label: string }[] = [];
 const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+
 for (let i = 6; i >= 0; i--) {
   const d = new Date();
   d.setDate(d.getDate() - i);
+
   const key = d.toISOString().split('T')[0];
-  ultimos7.push({ dia: key, n: diasMap[key] ?? 0, label: diasSemana[d.getDay()] });
+
+  ultimos7.push({
+    dia: key,
+    n: diasMap[key] ?? 0,
+    label: diasSemana[d.getDay()],
+  });
 }
 
 const mesesMap: Record<string, number> = {};
-porMes.forEach((m: any) => { mesesMap[m.mes] = m.n; });
+
+porMes.forEach((m: any) => {
+  mesesMap[m.mes] = m.n;
+});
+
 const ultimos12: { mes: string; n: number; label: string }[] = [];
 const mesesNombre = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
 for (let i = 11; i >= 0; i--) {
   const d = new Date();
+
   d.setDate(1);
   d.setMonth(d.getMonth() - i);
+
   const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-  ultimos12.push({ mes: key, n: mesesMap[key] ?? 0, label: mesesNombre[d.getMonth()] });
+
+  ultimos12.push({
+    mes: key,
+    n: mesesMap[key] ?? 0,
+    label: mesesNombre[d.getMonth()],
+  });
 }
+
 const maxMes = Math.max(...ultimos12.map(m => m.n), 1);
 
 const ultimasJson = JSON.stringify(ultimas);
 ---
+
 <Base title="Estadísticas — Panel">
   <main>
     <div class="topbar">
@@ -84,20 +160,23 @@ const ultimasJson = JSON.stringify(ultimas);
       <a href="/panel" class="btn-back">← Panel</a>
     </div>
 
-    <!-- Tarjetas resumen -->
+    <!-- RESUMEN -->
     <div class="cards">
       <div class="card">
         <p class="card-label">Visitas totales</p>
         <p class="card-value">{totalVisitas}</p>
       </div>
+
       <div class="card">
         <p class="card-label">Visitas humanas</p>
         <p class="card-value">{totalHumanas}</p>
       </div>
+
       <div class="card">
         <p class="card-label">Posts visitados</p>
         <p class="card-value">{totalPosts}</p>
       </div>
+
       <div class="card">
         <p class="card-label">Países</p>
         <p class="card-value">{totalPaises}</p>
@@ -105,55 +184,88 @@ const ultimasJson = JSON.stringify(ultimas);
     </div>
 
     <div class="grid-2">
-      <!-- Top posts -->
+      <!-- POSTS -->
       <div class="box">
         <h2>Posts más leídos</h2>
-        {topPosts.length === 0 && <p class="empty">Sin datos todavía.</p>}
+
+        {topPosts.length === 0 && (
+          <p class="empty">Sin datos todavía.</p>
+        )}
+
         {topPosts.map((p: any) => (
           <div class="bar-row">
             <div class="bar-info">
-              <span class="bar-label" title={p.slug}>{p.slug}</span>
-              <span class="bar-count">{p.n}</span>
+              <span class="bar-label" title={p.slug}>
+                {p.slug}
+              </span>
+
+              <span class="bar-count">
+                {p.n}
+              </span>
             </div>
+
             <div class="bar-track">
-              <div class="bar-fill bar-purple" style={`width: ${Math.round((p.n / maxPosts) * 100)}%`}></div>
+              <div
+                class="bar-fill bar-purple"
+                style={`width:${Math.round((p.n / maxPosts) * 100)}%`}
+              ></div>
             </div>
           </div>
         ))}
       </div>
 
       <div>
-        <!-- Top países -->
-        <div class="box" style="margin-bottom: 1.25rem;">
+        <!-- PAISES -->
+        <div class="box" style="margin-bottom:1.25rem;">
           <h2>Visitas por país</h2>
-          {topPaises.length === 0 && <p class="empty">Sin datos todavía.</p>}
+
+          {topPaises.length === 0 && (
+            <p class="empty">Sin datos todavía.</p>
+          )}
+
           {topPaises.map((p: any) => (
             <div class="bar-row">
               <div class="bar-info">
-                <span class="bar-label">{countryNames[p.country] ?? p.country}</span>
-                <span class="bar-count">{p.n}</span>
+                <span class="bar-label">
+                  {countryNames[p.country] ?? p.country}
+                </span>
+
+                <span class="bar-count">
+                  {p.n}
+                </span>
               </div>
+
               <div class="bar-track">
-                <div class="bar-fill bar-green" style={`width: ${Math.round((p.n / maxPaises) * 100)}%`}></div>
+                <div
+                  class="bar-fill bar-green"
+                  style={`width:${Math.round((p.n / maxPaises) * 100)}%`}
+                ></div>
               </div>
             </div>
           ))}
         </div>
 
-        <!-- Visitas por día -->
+        <!-- 7 DIAS -->
         <div class="box">
           <h2>Últimos 7 días</h2>
+
           <div class="chart">
             {ultimos7.map((d) => (
               <div class="chart-col">
-                <span class="chart-val">{d.n > 0 ? d.n : ''}</span>
+                <span class="chart-val">
+                  {d.n > 0 ? d.n : ''}
+                </span>
+
                 <div class="chart-bar-wrap">
                   <div
                     class="chart-bar"
-                    style={`height: ${d.n > 0 ? Math.max(8, Math.round((d.n / maxDia) * 80)) : 2}px; opacity: ${d.n > 0 ? 1 : 0.2}`}
+                    style={`height:${d.n > 0 ? Math.max(8, Math.round((d.n / maxDia) * 80)) : 2}px`}
                   ></div>
                 </div>
-                <span class="chart-label">{d.label}</span>
+
+                <span class="chart-label">
+                  {d.label}
+                </span>
               </div>
             ))}
           </div>
@@ -161,56 +273,69 @@ const ultimasJson = JSON.stringify(ultimas);
       </div>
     </div>
 
-    <!-- Visitas por mes -->
-    <div class="box" style="margin-top: 1.25rem;">
+    <!-- 12 MESES -->
+    <div class="box mt">
       <h2>Últimos 12 meses</h2>
+
       <div class="chart chart-wide">
         {ultimos12.map((m) => (
           <div class="chart-col">
-            <span class="chart-val">{m.n > 0 ? m.n : ''}</span>
+            <span class="chart-val">
+              {m.n > 0 ? m.n : ''}
+            </span>
+
             <div class="chart-bar-wrap">
               <div
                 class="chart-bar bar-month"
-                style={`height: ${m.n > 0 ? Math.max(8, Math.round((m.n / maxMes) * 100)) : 2}px; opacity: ${m.n > 0 ? 1 : 0.15}`}
+                style={`height:${m.n > 0 ? Math.max(8, Math.round((m.n / maxMes) * 100)) : 2}px`}
               ></div>
             </div>
-            <span class="chart-label">{m.label}</span>
+
+            <span class="chart-label">
+              {m.label}
+            </span>
           </div>
         ))}
       </div>
     </div>
 
-    <!-- Últimas visitas -->
-    <div class="box" style="margin-top: 1.25rem;">
+    <!-- TABLA -->
+    <div class="box mt">
       <div class="section-header">
         <h2>Últimas visitas</h2>
         <span class="results-count" id="results-count"></span>
       </div>
 
-      <!-- Filtros -->
+      <!-- FILTROS -->
       <div class="filters">
         <div class="filter-group">
           <label for="f-desde">Desde</label>
           <input type="date" id="f-desde" />
         </div>
+
         <div class="filter-group">
           <label for="f-hasta">Hasta</label>
           <input type="date" id="f-hasta" />
         </div>
+
         <div class="filter-group">
           <label for="f-ip">IP</label>
-          <input type="text" id="f-ip" placeholder="Filtrar por IP…" />
+          <input type="text" id="f-ip" placeholder="Filtrar por IP..." />
         </div>
+
         <div class="filter-group">
           <label for="f-bot">Bot</label>
+
           <select id="f-bot">
             <option value="">Todos</option>
             <option value="0">Solo humanos</option>
             <option value="1">Solo bots</option>
           </select>
         </div>
+
         <div class="filter-group">
           <label for="f-limit">Mostrar</label>
+
           <select id="f-limit">
             <option value="20" selected>20</option>
             <option value="50">50</option>
@@ -219,10 +344,16 @@ const ultimasJson = JSON.stringify(ultimas);
             <option value="0">Todos</option>
           </select>
         </div>
-        <button class="btn-reset" id="btn-reset" type="button">Limpiar</button>
+
+        <button class="btn-reset" id="btn-reset" type="button">
+          Limpiar
+        </button>
       </div>
 
-      {ultimas.length === 0 && <p class="empty">Sin datos todavía.</p>}
+      {ultimas.length === 0 && (
+        <p class="empty">Sin datos todavía.</p>
+      )}
+
       {ultimas.length > 0 && (
         <div class="table-wrap">
           <table id="visitas-table">
@@ -234,6 +365,7 @@ const ultimasJson = JSON.stringify(ultimas);
               <col class="col-date" />
               <col class="col-bot" />
             </colgroup>
+
             <thead>
               <tr>
                 <th>Post</th>
@@ -244,9 +376,13 @@ const ultimasJson = JSON.stringify(ultimas);
                 <th>Bot</th>
               </tr>
             </thead>
+
             <tbody id="visitas-body"></tbody>
           </table>
-          <p class="empty" id="no-results" style="display:none;">Sin resultados para los filtros aplicados.</p>
+
+          <p class="empty" id="no-results" style="display:none;">
+            Sin resultados para los filtros aplicados.
+          </p>
         </div>
       )}
     </div>
@@ -257,95 +393,180 @@ const ultimasJson = JSON.stringify(ultimas);
   const ALL_DATA = JSON.parse(ultimasJson);
 
   const COUNTRY_NAMES = {
-    ES: '🇪🇸 España', US: '🇺🇸 EE.UU.', BE: '🇧🇪 Bélgica', FR: '🇫🇷 Francia',
-    DE: '🇩🇪 Alemania', MX: '🇲🇽 México', AR: '🇦🇷 Argentina', GB: '🇬🇧 Reino Unido',
-    IT: '🇮🇹 Italia', PT: '🇵🇹 Portugal', BR: '🇧🇷 Brasil', CO: '🇨🇴 Colombia',
-    CL: '🇨🇱 Chile', NL: '🇳🇱 Países Bajos', PL: '🇵🇱 Polonia', SE: '🇸🇪 Suecia',
+    ES: '🇪🇸 España',
+    US: '🇺🇸 EE.UU.',
+    BE: '🇧🇪 Bélgica',
+    FR: '🇫🇷 Francia',
+    DE: '🇩🇪 Alemania',
+    MX: '🇲🇽 México',
+    AR: '🇲🇽 Argentina',
+    GB: '🇬🇧 Reino Unido',
+    IT: '🇮🇹 Italia',
+    PT: '🇵🇹 Portugal',
+    BR: '🇧🇷 Brasil',
+    CO: '🇨🇴 Colombia',
+    CL: '🇨🇱 Chile',
+    NL: '🇳🇱 Países Bajos',
+    PL: '🇵🇱 Polonia',
+    SE: '🇸🇪 Suecia',
   };
 
-  const fDesde   = document.getElementById('f-desde');
-  const fHasta   = document.getElementById('f-hasta');
-  const fIp      = document.getElementById('f-ip');
-  const fBot     = document.getElementById('f-bot');
-  const fLimit   = document.getElementById('f-limit');
+  const fDesde = document.getElementById('f-desde');
+  const fHasta = document.getElementById('f-hasta');
+  const fIp = document.getElementById('f-ip');
+  const fBot = document.getElementById('f-bot');
+  const fLimit = document.getElementById('f-limit');
   const btnReset = document.getElementById('btn-reset');
-  const tbody    = document.getElementById('visitas-body');
+
+  const tbody = document.getElementById('visitas-body');
   const noResults = document.getElementById('no-results');
-  const countEl  = document.getElementById('results-count');
+  const countEl = document.getElementById('results-count');
+
+  function esc(str = '') {
+    return String(str)
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;');
+  }
 
   function formatDate(str) {
     if (!str) return '—';
+
     return new Date(str).toLocaleDateString('es-ES', {
-      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     });
   }
 
   function render() {
     if (!tbody) return;
 
-    const desde = fDesde.value ? new Date(fDesde.value + 'T00:00:00') : null;
-    const hasta = fHasta.value ? new Date(fHasta.value + 'T23:59:59') : null;
-    const ip    = fIp.value.trim().toLowerCase();
-    const bot   = fBot.value;
+    const desde = fDesde.value
+      ? new Date(fDesde.value + 'T00:00:00')
+      : null;
+
+    const hasta = fHasta.value
+      ? new Date(fHasta.value + 'T23:59:59')
+      : null;
+
+    const ip = fIp.value.trim().toLowerCase();
+    const bot = fBot.value;
     const limit = parseInt(fLimit.value, 10);
 
     const filtered = ALL_DATA.filter(v => {
       if (desde || hasta) {
         const d = new Date(v.viewed_at);
+
         if (desde && d < desde) return false;
         if (hasta && d > hasta) return false;
       }
-      if (ip && !(v.ip ?? '').toLowerCase().includes(ip)) return false;
-      if (bot === '0' && v.is_bot !== 0) return false;
-      if (bot === '1' && v.is_bot !== 1) return false;
+
+      if (ip && !(v.ip ?? '').toLowerCase().includes(ip)) {
+        return false;
+      }
+
+      if (bot === '0' && v.is_bot !== 0) {
+        return false;
+      }
+
+      if (bot === '1' && v.is_bot !== 1) {
+        return false;
+      }
+
       return true;
     });
 
     const total = filtered.length;
-    const shown = limit > 0 ? filtered.slice(0, limit) : filtered;
+    const shown = limit > 0
+      ? filtered.slice(0, limit)
+      : filtered;
 
     tbody.innerHTML = shown.map(v => {
-      const country  = v.country ? (COUNTRY_NAMES[v.country] ?? v.country) : '—';
-      const city     = v.city ?? '—';
-      const ipVal    = v.ip ?? '—';
-      const date     = formatDate(v.viewed_at);
-      const botBadge = v.is_bot ? `<span class="badge-bot">bot</span>` : '—';
-      const slug     = v.slug ?? '';
-      // Escape para atributos HTML
-      const esc = s => s.replace(/"/g, '&quot;').replace(/</g, '&lt;');
-      const ipCopy = v.ip
-        ? `<span class="td-ip td-copy" data-copy="${esc(v.ip)}" title="Copiar ${esc(v.ip)}">${esc(v.ip)}</span>`
-        : '<span class="td-ip">—</span>';
-      return `<tr>
-        <td class="td-slug" title="${esc(slug)}">${esc(slug)}</td>
-        <td class="td-country">${country}</td>
-        <td class="td-city" title="${esc(city)}">${esc(city)}</td>
-        ${ipCopy ? `<td class="td-ip-cell">${ipCopy}</td>` : '<td class="td-ip-cell"><span class="td-ip">—</span></td>'}
-        <td class="td-date">${date}</td>
-        <td class="td-bot">${botBadge}</td>
-      </tr>`;
+      const slug = v.slug ?? '—';
+      const country = v.country
+        ? (COUNTRY_NAMES[v.country] ?? v.country)
+        : '—';
+
+      const city = v.city ?? '—';
+      const ipVal = v.ip ?? '—';
+      const date = formatDate(v.viewed_at);
+
+      const botBadge = v.is_bot
+        ? `<span class="badge-bot">bot</span>`
+        : '—';
+
+      return `
+        <tr>
+          <td>
+            <span class="td-slug" title="${esc(slug)}">
+              ${esc(slug)}
+            </span>
+          </td>
+
+          <td>
+            <span class="td-country">
+              ${country}
+            </span>
+          </td>
+
+          <td>
+            <span class="td-city" title="${esc(city)}">
+              ${esc(city)}
+            </span>
+          </td>
+
+          <td class="td-ip-cell">
+            <span
+              class="td-ip td-copy"
+              data-copy="${esc(ipVal)}"
+              title="Copiar ${esc(ipVal)}"
+            >
+              ${esc(ipVal)}
+            </span>
+          </td>
+
+          <td>
+            <span class="td-date">
+              ${date}
+            </span>
+          </td>
+
+          <td>
+            <span class="td-bot">
+              ${botBadge}
+            </span>
+          </td>
+        </tr>
+      `;
     }).join('');
 
-    // Delegación de evento para copiar IP al click
     tbody.querySelectorAll('.td-copy').forEach(el => {
       el.addEventListener('click', () => {
-        navigator.clipboard.writeText(el.dataset.copy).then(() => {
-          const prev = el.textContent;
-          el.textContent = '✓ copiado';
-          el.style.color = '#0f6e56';
-          setTimeout(() => { el.textContent = prev; el.style.color = ''; }, 1200);
-        });
+        navigator.clipboard.writeText(el.dataset.copy);
+
+        const prev = el.textContent;
+
+        el.textContent = '✓ copiado';
+        el.style.color = '#0f6e56';
+
+        setTimeout(() => {
+          el.textContent = prev;
+          el.style.color = '';
+        }, 1200);
       });
     });
 
     if (countEl) {
-      countEl.textContent = (limit > 0 && total > limit)
-        ? `Mostrando ${shown.length} de ${total}`
-        : `${total} resultado${total !== 1 ? 's' : ''}`;
+      countEl.textContent =
+        (limit > 0 && total > limit)
+          ? `Mostrando ${shown.length} de ${total}`
+          : `${total} resultado${total !== 1 ? 's' : ''}`;
     }
 
     if (noResults) {
-      noResults.style.display = shown.length === 0 ? '' : 'none';
+      noResults.style.display =
+        shown.length === 0 ? '' : 'none';
     }
   }
 
@@ -360,6 +581,7 @@ const ultimasJson = JSON.stringify(ultimas);
     fIp.value = '';
     fBot.value = '';
     fLimit.value = '20';
+
     render();
   });
 
@@ -367,29 +589,108 @@ const ultimasJson = JSON.stringify(ultimas);
 </script>
 
 <style>
-  main { max-width: 860px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
-  .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; }
-  h1 { font-family: var(--font-display); font-size: 2rem; font-weight: 400; letter-spacing: -0.02em; }
-  .btn-back { font-size: 0.9rem; color: var(--color-muted); border: 1px solid var(--color-border); padding: 0.5rem 1.25rem; border-radius: 4px; transition: color 0.2s, border-color 0.2s; }
-  .btn-back:hover { color: var(--color-text); border-color: var(--color-text); }
+  main {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+  }
 
-  .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
-  .card { background: #f5f5f2; border-radius: 8px; padding: 1rem 1.25rem; }
-  .card-label { font-size: 0.8rem; color: var(--color-muted); margin-bottom: 0.25rem; }
-  .card-value { font-size: 1.75rem; font-weight: 500; letter-spacing: -0.02em; }
+  .mt {
+    margin-top: 1.25rem;
+  }
 
-  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 2rem;
+  }
 
-  .box { background: #fff; border: 1px solid var(--color-border); border-radius: 8px; padding: 1.25rem; }
-  h2 { font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; color: var(--color-muted); margin-bottom: 1rem; }
-  .empty { font-size: 0.9rem; color: var(--color-muted); }
+  h1 {
+    font-family: var(--font-display);
+    font-size: 2rem;
+    font-weight: 400;
+    letter-spacing: -0.02em;
+  }
 
-  /* Cabecera sección */
-  .section-header { display: flex; align-items: baseline; gap: 0.75rem; margin-bottom: 1rem; }
-  .section-header h2 { margin-bottom: 0; }
-  .results-count { font-size: 0.78rem; color: var(--color-muted); }
+  .btn-back {
+    font-size: 0.9rem;
+    color: var(--color-muted);
+    border: 1px solid var(--color-border);
+    padding: 0.5rem 1.25rem;
+    border-radius: 4px;
+    transition: 0.2s;
+  }
 
-  /* Filtros */
+  .btn-back:hover {
+    color: var(--color-text);
+    border-color: var(--color-text);
+  }
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .card {
+    background: #f5f5f2;
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+  }
+
+  .card-label {
+    font-size: 0.8rem;
+    color: var(--color-muted);
+    margin-bottom: 0.25rem;
+  }
+
+  .card-value {
+    font-size: 1.75rem;
+    font-weight: 500;
+  }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+  }
+
+  .box {
+    background: #fff;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 1.25rem;
+  }
+
+  h2 {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-muted);
+    margin-bottom: 1rem;
+  }
+
+  .empty {
+    color: var(--color-muted);
+    font-size: 0.9rem;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .results-count {
+    font-size: 0.78rem;
+    color: var(--color-muted);
+  }
+
+  /* filtros */
+
   .filters {
     display: flex;
     flex-wrap: wrap;
@@ -400,96 +701,305 @@ const ultimasJson = JSON.stringify(ultimas);
     border-radius: 6px;
     margin-bottom: 1.25rem;
   }
-  .filter-group { display: flex; flex-direction: column; gap: 0.3rem; }
+
+  .filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
   .filter-group label {
     font-size: 0.72rem;
-    font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--color-muted);
   }
-  .filter-group input[type="date"],
-  .filter-group input[type="text"],
+
+  .filter-group input,
   .filter-group select {
     font-size: 0.85rem;
     border: 1px solid var(--color-border);
     border-radius: 4px;
-    padding: 0.4rem 0.6rem;
+    padding: 0.45rem 0.65rem;
     background: #fff;
-    color: var(--color-text);
     min-width: 120px;
   }
-  .filter-group input[type="text"] { min-width: 150px; }
-  .filter-group select { min-width: 110px; }
-  .filter-group input:focus,
-  .filter-group select:focus { outline: none; border-color: #6d63d4; box-shadow: 0 0 0 2px rgba(109,99,212,0.15); }
+
   .btn-reset {
     font-size: 0.82rem;
-    padding: 0.42rem 1rem;
+    padding: 0.45rem 1rem;
     border: 1px solid var(--color-border);
     border-radius: 4px;
     background: #fff;
-    color: var(--color-muted);
     cursor: pointer;
-    transition: color 0.15s, border-color 0.15s;
-    align-self: flex-end;
   }
-  .btn-reset:hover { color: var(--color-text); border-color: var(--color-text); }
 
-  .table-wrap { overflow-x: auto; }
+  /* barras */
 
-  .bar-row { margin-bottom: 0.65rem; }
-  .bar-info { display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 3px; }
-  .bar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 80%; color: var(--color-text); }
-  .bar-count { font-weight: 500; color: var(--color-text); }
-  .bar-track { background: var(--color-border); border-radius: 4px; height: 4px; }
-  .bar-fill { height: 4px; border-radius: 4px; min-width: 4px; }
-  .bar-purple { background: #6d63d4; }
-  .bar-green { background: #0f6e56; }
+  .bar-row {
+    margin-bottom: 0.7rem;
+  }
 
-  .chart { display: flex; align-items: flex-end; gap: 6px; height: 110px; padding-top: 1.5rem; }
-  .chart-wide { height: 130px; gap: 4px; }
-  .chart-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end; }
-  .chart-val { font-size: 10px; color: var(--color-muted); height: 14px; }
-  .chart-bar-wrap { display: flex; align-items: flex-end; width: 100%; justify-content: center; }
-  .chart-bar { background: #6d63d4; border-radius: 3px 3px 0 0; width: 100%; transition: height 0.3s; }
-  .bar-month { background: #0f6e56; }
-  .chart-label { font-size: 10px; color: var(--color-muted); }
+  .bar-info {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.3rem;
+  }
 
-  table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 0.85rem; }
-  /* Anchos de columna: Post · País · Ciudad · IP · Fecha · Bot */
-  col.col-slug    { width: 28%; }
-  col.col-country { width: 12%; }
-  col.col-city    { width: 16%; }
-  col.col-ip      { width: 18%; }
-  col.col-date    { width: 18%; }
-  col.col-bot     { width: 8%; }
-  th { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 2px solid var(--color-border); color: var(--color-muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500; overflow: hidden; }
-  td { padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--color-border); vertical-align: middle; overflow: hidden; white-space: nowrap; }
-  tr:last-child td { border-bottom: none; }
-  tr:hover td { background: #f9f9f7; }
-  /* Celdas con truncado + tooltip nativo */
-  .td-slug, .td-city { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .td-ip-cell { overflow: hidden; }
+  .bar-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .bar-track {
+    height: 4px;
+    background: var(--color-border);
+    border-radius: 999px;
+  }
+
+  .bar-fill {
+    height: 100%;
+    border-radius: inherit;
+  }
+
+  .bar-purple {
+    background: #6d63d4;
+  }
+
+  .bar-green {
+    background: #0f6e56;
+  }
+
+  /* charts */
+
+  .chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    height: 110px;
+    padding-top: 1rem;
+  }
+
+  .chart-wide {
+    height: 130px;
+  }
+
+  .chart-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .chart-bar-wrap {
+    width: 100%;
+    display: flex;
+    align-items: flex-end;
+  }
+
+  .chart-bar {
+    width: 100%;
+    border-radius: 4px 4px 0 0;
+    background: #6d63d4;
+  }
+
+  .bar-month {
+    background: #0f6e56;
+  }
+
+  .chart-val,
+  .chart-label {
+    font-size: 10px;
+    color: var(--color-muted);
+  }
+
+  /* tabla */
+
+  .table-wrap {
+    overflow-x: auto;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 0.84rem;
+  }
+
+  col.col-slug {
+    width: 32%;
+  }
+
+  col.col-country {
+    width: 12%;
+  }
+
+  col.col-city {
+    width: 14%;
+  }
+
+  col.col-ip {
+    width: 20%;
+  }
+
+  col.col-date {
+    width: 16%;
+  }
+
+  col.col-bot {
+    width: 6%;
+  }
+
+  th {
+    text-align: left;
+    padding: 0.75rem;
+    border-bottom: 2px solid var(--color-border);
+    color: var(--color-muted);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  td {
+    padding: 0.75rem;
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: top;
+
+    max-width: 0;
+    min-width: 0;
+
+    overflow: hidden;
+  }
+
+  tr:last-child td {
+    border-bottom: none;
+  }
+
+  tr:hover td {
+    background: #fafaf8;
+  }
+
+  /* truncados */
+
+  .td-slug,
+  .td-city,
+  .td-country {
+    display: block;
+
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    min-width: 0;
+  }
+
+  /* ips */
+
   .td-ip {
-    font-family: monospace; font-size: 0.8rem; color: var(--color-muted);
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block;
+    display: block;
+
+    font-family: monospace;
+    font-size: 0.76rem;
+    line-height: 1.35;
+
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+
+    color: var(--color-muted);
   }
+
+  .td-ip-cell {
+    overflow: hidden;
+  }
+
   .td-copy {
     cursor: pointer;
-    border-radius: 3px;
-    transition: color 0.15s, background 0.15s;
+    transition: 0.15s;
+    border-radius: 4px;
   }
-  .td-copy:hover { color: #6d63d4; background: rgba(109,99,212,0.07); }
-  .td-country { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .td-date { color: var(--color-muted); white-space: nowrap; }
-  .td-bot { white-space: nowrap; }
-  .badge-bot { font-size: 0.7rem; background: #fef3c7; color: #92400e; padding: 0.15rem 0.5rem; border-radius: 99px; font-weight: 500; }
+
+  .td-copy:hover {
+    color: #6d63d4;
+    background: rgba(109, 99, 212, 0.08);
+  }
+
+  .td-date {
+    white-space: nowrap;
+    color: var(--color-muted);
+  }
+
+  .td-bot {
+    white-space: nowrap;
+  }
+
+  .badge-bot {
+    display: inline-flex;
+    align-items: center;
+
+    font-size: 0.68rem;
+    font-weight: 600;
+
+    background: #fef3c7;
+    color: #92400e;
+
+    padding: 0.18rem 0.5rem;
+    border-radius: 999px;
+  }
+
+  @media (max-width: 900px) {
+    .cards {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .grid-2 {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 700px) {
+    table {
+      font-size: 0.8rem;
+    }
+
+    col.col-country {
+      width: 18%;
+    }
+
+    col.col-city {
+      width: 18%;
+    }
+
+    col.col-ip {
+      width: 28%;
+    }
+
+    col.col-date {
+      width: 22%;
+    }
+  }
 
   @media (max-width: 600px) {
-    .cards { grid-template-columns: repeat(2, 1fr); }
-    .grid-2 { grid-template-columns: 1fr; }
-    .filters { gap: 0.5rem; }
-    .filter-group input, .filter-group select { min-width: 90px; }
+    main {
+      padding-inline: 1rem;
+    }
+
+    .cards {
+      grid-template-columns: 1fr;
+    }
+
+    .filters {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .filter-group input,
+    .filter-group select {
+      width: 100%;
+    }
   }
 </style>
