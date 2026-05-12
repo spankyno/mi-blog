@@ -37,7 +37,7 @@ if (db) {
     db.prepare(`SELECT country, COUNT(*) as n FROM page_views WHERE is_bot = 0 AND country IS NOT NULL GROUP BY country ORDER BY n DESC LIMIT 10`).all(),
     db.prepare(`SELECT DATE(viewed_at) as dia, COUNT(*) as n FROM page_views WHERE is_bot = 0 AND viewed_at >= DATE('now', '-6 days') GROUP BY dia ORDER BY dia ASC`).all(),
     db.prepare(`SELECT STRFTIME('%Y-%m', viewed_at) as mes, COUNT(*) as n FROM page_views WHERE is_bot = 0 AND viewed_at >= DATE('now', '-11 months', 'start of month') GROUP BY mes ORDER BY mes ASC`).all(),
-    db.prepare(`SELECT slug, country, city, viewed_at, is_bot FROM page_views ORDER BY viewed_at DESC LIMIT 20`).all(),
+    db.prepare(`SELECT slug, country, city, ip, viewed_at, is_bot FROM page_views ORDER BY viewed_at DESC LIMIT 500`).all(),
   ]);
 
   topPosts = rPosts.results ?? [];
@@ -51,7 +51,6 @@ const maxPosts = topPosts[0]?.n ?? 1;
 const maxPaises = topPaises[0]?.n ?? 1;
 const maxDia = Math.max(...porDia.map((d: any) => d.n), 1);
 
-// Rellenar días sin visitas
 const diasMap: Record<string, number> = {};
 porDia.forEach((d: any) => { diasMap[d.dia] = d.n; });
 const ultimos7: { dia: string; n: number; label: string }[] = [];
@@ -63,7 +62,6 @@ for (let i = 6; i >= 0; i--) {
   ultimos7.push({ dia: key, n: diasMap[key] ?? 0, label: diasSemana[d.getDay()] });
 }
 
-// Rellenar meses sin visitas (últimos 12 meses)
 const mesesMap: Record<string, number> = {};
 porMes.forEach((m: any) => { mesesMap[m.mes] = m.n; });
 const ultimos12: { mes: string; n: number; label: string }[] = [];
@@ -76,6 +74,8 @@ for (let i = 11; i >= 0; i--) {
   ultimos12.push({ mes: key, n: mesesMap[key] ?? 0, label: mesesNombre[d.getMonth()] });
 }
 const maxMes = Math.max(...ultimos12.map(m => m.n), 1);
+
+const ultimasJson = JSON.stringify(ultimas);
 ---
 <Base title="Estadísticas — Panel">
   <main>
@@ -182,35 +182,163 @@ const maxMes = Math.max(...ultimos12.map(m => m.n), 1);
 
     <!-- Últimas visitas -->
     <div class="box" style="margin-top: 1.25rem;">
-      <h2>Últimas visitas</h2>
+      <div class="section-header">
+        <h2>Últimas visitas</h2>
+        <span class="results-count" id="results-count"></span>
+      </div>
+
+      <!-- Filtros -->
+      <div class="filters">
+        <div class="filter-group">
+          <label for="f-desde">Desde</label>
+          <input type="date" id="f-desde" />
+        </div>
+        <div class="filter-group">
+          <label for="f-hasta">Hasta</label>
+          <input type="date" id="f-hasta" />
+        </div>
+        <div class="filter-group">
+          <label for="f-ip">IP</label>
+          <input type="text" id="f-ip" placeholder="Filtrar por IP…" />
+        </div>
+        <div class="filter-group">
+          <label for="f-bot">Bot</label>
+          <select id="f-bot">
+            <option value="">Todos</option>
+            <option value="0">Solo humanos</option>
+            <option value="1">Solo bots</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="f-limit">Mostrar</label>
+          <select id="f-limit">
+            <option value="20" selected>20</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+            <option value="200">200</option>
+            <option value="0">Todos</option>
+          </select>
+        </div>
+        <button class="btn-reset" id="btn-reset" type="button">Limpiar</button>
+      </div>
+
       {ultimas.length === 0 && <p class="empty">Sin datos todavía.</p>}
       {ultimas.length > 0 && (
-        <table>
-          <thead>
-            <tr>
-              <th>Post</th>
-              <th>País</th>
-              <th>Ciudad</th>
-              <th>Fecha</th>
-              <th>Bot</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ultimas.map((v: any) => (
+        <div class="table-wrap">
+          <table id="visitas-table">
+            <thead>
               <tr>
-                <td class="td-slug" title={v.slug}>{v.slug}</td>
-                <td>{v.country ? (countryNames[v.country] ?? v.country) : '—'}</td>
-                <td>{v.city ?? '—'}</td>
-                <td class="td-date">{new Date(v.viewed_at).toLocaleDateString('es-ES', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
-                <td>{v.is_bot ? <span class="badge-bot">bot</span> : '—'}</td>
+                <th>Post</th>
+                <th>País</th>
+                <th>Ciudad</th>
+                <th>IP</th>
+                <th>Fecha</th>
+                <th>Bot</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody id="visitas-body"></tbody>
+          </table>
+          <p class="empty" id="no-results" style="display:none;">Sin resultados para los filtros aplicados.</p>
+        </div>
       )}
     </div>
   </main>
 </Base>
+
+<script define:vars={{ ultimasJson }}>
+  const ALL_DATA = JSON.parse(ultimasJson);
+
+  const COUNTRY_NAMES = {
+    ES: '🇪🇸 España', US: '🇺🇸 EE.UU.', BE: '🇧🇪 Bélgica', FR: '🇫🇷 Francia',
+    DE: '🇩🇪 Alemania', MX: '🇲🇽 México', AR: '🇦🇷 Argentina', GB: '🇬🇧 Reino Unido',
+    IT: '🇮🇹 Italia', PT: '🇵🇹 Portugal', BR: '🇧🇷 Brasil', CO: '🇨🇴 Colombia',
+    CL: '🇨🇱 Chile', NL: '🇳🇱 Países Bajos', PL: '🇵🇱 Polonia', SE: '🇸🇪 Suecia',
+  };
+
+  const fDesde   = document.getElementById('f-desde');
+  const fHasta   = document.getElementById('f-hasta');
+  const fIp      = document.getElementById('f-ip');
+  const fBot     = document.getElementById('f-bot');
+  const fLimit   = document.getElementById('f-limit');
+  const btnReset = document.getElementById('btn-reset');
+  const tbody    = document.getElementById('visitas-body');
+  const noResults = document.getElementById('no-results');
+  const countEl  = document.getElementById('results-count');
+
+  function formatDate(str) {
+    if (!str) return '—';
+    return new Date(str).toLocaleDateString('es-ES', {
+      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+    });
+  }
+
+  function render() {
+    if (!tbody) return;
+
+    const desde = fDesde.value ? new Date(fDesde.value + 'T00:00:00') : null;
+    const hasta = fHasta.value ? new Date(fHasta.value + 'T23:59:59') : null;
+    const ip    = fIp.value.trim().toLowerCase();
+    const bot   = fBot.value;
+    const limit = parseInt(fLimit.value, 10);
+
+    const filtered = ALL_DATA.filter(v => {
+      if (desde || hasta) {
+        const d = new Date(v.viewed_at);
+        if (desde && d < desde) return false;
+        if (hasta && d > hasta) return false;
+      }
+      if (ip && !(v.ip ?? '').toLowerCase().includes(ip)) return false;
+      if (bot === '0' && v.is_bot !== 0) return false;
+      if (bot === '1' && v.is_bot !== 1) return false;
+      return true;
+    });
+
+    const total = filtered.length;
+    const shown = limit > 0 ? filtered.slice(0, limit) : filtered;
+
+    tbody.innerHTML = shown.map(v => {
+      const country  = v.country ? (COUNTRY_NAMES[v.country] ?? v.country) : '—';
+      const city     = v.city ?? '—';
+      const ipVal    = v.ip ?? '—';
+      const date     = formatDate(v.viewed_at);
+      const botBadge = v.is_bot ? `<span class="badge-bot">bot</span>` : '—';
+      return `<tr>
+        <td class="td-slug" title="${v.slug}">${v.slug}</td>
+        <td>${country}</td>
+        <td>${city}</td>
+        <td class="td-ip">${ipVal}</td>
+        <td class="td-date">${date}</td>
+        <td>${botBadge}</td>
+      </tr>`;
+    }).join('');
+
+    if (countEl) {
+      countEl.textContent = (limit > 0 && total > limit)
+        ? `Mostrando ${shown.length} de ${total}`
+        : `${total} resultado${total !== 1 ? 's' : ''}`;
+    }
+
+    if (noResults) {
+      noResults.style.display = shown.length === 0 ? '' : 'none';
+    }
+  }
+
+  [fDesde, fHasta, fIp, fBot, fLimit].forEach(el => {
+    el.addEventListener('input', render);
+    el.addEventListener('change', render);
+  });
+
+  btnReset.addEventListener('click', () => {
+    fDesde.value = '';
+    fHasta.value = '';
+    fIp.value = '';
+    fBot.value = '';
+    fLimit.value = '20';
+    render();
+  });
+
+  render();
+</script>
 
 <style>
   main { max-width: 860px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
@@ -229,6 +357,60 @@ const maxMes = Math.max(...ultimos12.map(m => m.n), 1);
   .box { background: #fff; border: 1px solid var(--color-border); border-radius: 8px; padding: 1.25rem; }
   h2 { font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; color: var(--color-muted); margin-bottom: 1rem; }
   .empty { font-size: 0.9rem; color: var(--color-muted); }
+
+  /* Cabecera sección */
+  .section-header { display: flex; align-items: baseline; gap: 0.75rem; margin-bottom: 1rem; }
+  .section-header h2 { margin-bottom: 0; }
+  .results-count { font-size: 0.78rem; color: var(--color-muted); }
+
+  /* Filtros */
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: flex-end;
+    padding: 1rem;
+    background: #f5f5f2;
+    border-radius: 6px;
+    margin-bottom: 1.25rem;
+  }
+  .filter-group { display: flex; flex-direction: column; gap: 0.3rem; }
+  .filter-group label {
+    font-size: 0.72rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-muted);
+  }
+  .filter-group input[type="date"],
+  .filter-group input[type="text"],
+  .filter-group select {
+    font-size: 0.85rem;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    padding: 0.4rem 0.6rem;
+    background: #fff;
+    color: var(--color-text);
+    min-width: 120px;
+  }
+  .filter-group input[type="text"] { min-width: 150px; }
+  .filter-group select { min-width: 110px; }
+  .filter-group input:focus,
+  .filter-group select:focus { outline: none; border-color: #6d63d4; box-shadow: 0 0 0 2px rgba(109,99,212,0.15); }
+  .btn-reset {
+    font-size: 0.82rem;
+    padding: 0.42rem 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: #fff;
+    color: var(--color-muted);
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+    align-self: flex-end;
+  }
+  .btn-reset:hover { color: var(--color-text); border-color: var(--color-text); }
+
+  .table-wrap { overflow-x: auto; }
 
   .bar-row { margin-bottom: 0.65rem; }
   .bar-info { display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 3px; }
@@ -253,12 +435,15 @@ const maxMes = Math.max(...ultimos12.map(m => m.n), 1);
   td { padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--color-border); vertical-align: middle; }
   tr:last-child td { border-bottom: none; }
   tr:hover td { background: #f9f9f7; }
-  .td-slug { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .td-slug { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .td-ip { font-family: monospace; font-size: 0.8rem; color: var(--color-muted); white-space: nowrap; }
   .td-date { color: var(--color-muted); white-space: nowrap; }
   .badge-bot { font-size: 0.7rem; background: #fef3c7; color: #92400e; padding: 0.15rem 0.5rem; border-radius: 99px; font-weight: 500; }
 
   @media (max-width: 600px) {
     .cards { grid-template-columns: repeat(2, 1fr); }
     .grid-2 { grid-template-columns: 1fr; }
+    .filters { gap: 0.5rem; }
+    .filter-group input, .filter-group select { min-width: 90px; }
   }
 </style>
