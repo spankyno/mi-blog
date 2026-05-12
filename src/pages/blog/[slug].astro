@@ -74,6 +74,22 @@ if (db) {
   comments = res.results ?? [];
 }
 
+// Posts anterior y siguiente
+let postAnterior: any = null;
+let postSiguiente: any = null;
+if (db) {
+  const [rAnterior, rSiguiente] = await Promise.all([
+    db.prepare(
+      `SELECT slug, title FROM posts WHERE draft != 1 AND pub_date < ? ORDER BY pub_date DESC LIMIT 1`
+    ).bind(post.pub_date).first(),
+    db.prepare(
+      `SELECT slug, title FROM posts WHERE draft != 1 AND pub_date > ? ORDER BY pub_date ASC LIMIT 1`
+    ).bind(post.pub_date).first(),
+  ]);
+  postAnterior = rAnterior ?? null;
+  postSiguiente = rSiguiente ?? null;
+}
+
 const SITE_URL = 'https://aitorsanchez.pages.dev';
 const postUrl = `${SITE_URL}/blog/${slug}`;
 const ogImage = post.hero_image?.startsWith('http')
@@ -173,6 +189,32 @@ const shareEmail = `mailto:?subject=${encodeURIComponent(post.title)}&body=${enc
         </div>
       </div>
     </section>
+
+    <!-- Navegación anterior/siguiente -->
+    {(postAnterior || postSiguiente) && (
+      <nav class="post-nav">
+        <div class="post-nav-inner">
+          {postAnterior ? (
+            <a href={`/blog/${postAnterior.slug}`} class="post-nav-link post-nav-prev">
+              <span class="post-nav-label">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><line x1="19" x2="5" y1="12" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+                Anterior
+              </span>
+              <span class="post-nav-title">{postAnterior.title}</span>
+            </a>
+          ) : <div />}
+          {postSiguiente ? (
+            <a href={`/blog/${postSiguiente.slug}`} class="post-nav-link post-nav-next">
+              <span class="post-nav-label">
+                Siguiente
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><line x1="5" x2="19" y1="12" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+              </span>
+              <span class="post-nav-title">{postSiguiente.title}</span>
+            </a>
+          ) : <div />}
+        </div>
+      </nav>
+    )}
 
     <a href="/blog" class="back">← Volver al blog</a>
   </main>
@@ -365,6 +407,56 @@ const shareEmail = `mailto:?subject=${encodeURIComponent(post.title)}&body=${enc
   }
   .form-fields button:hover { opacity: 0.75; }
   .form-fields button:disabled { opacity: 0.5; cursor: not-allowed; }
+  /* Navegación anterior/siguiente */
+  .post-nav {
+    border-top: 1px solid var(--color-border);
+    padding: 2rem 0 1.5rem;
+  }
+  .post-nav-inner {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+  .post-nav-link {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    text-decoration: none;
+    padding: 1rem 1.1rem;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .post-nav-link:hover {
+    border-color: var(--color-text);
+    background: #f9f9f7;
+  }
+  .post-nav-next { text-align: right; }
+  .post-nav-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--color-muted);
+  }
+  .post-nav-title {
+    font-size: 0.88rem;
+    font-weight: 500;
+    color: var(--color-text);
+    line-height: 1.35;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  @media (max-width: 480px) {
+    .post-nav-inner { grid-template-columns: 1fr; }
+    .post-nav-next { text-align: left; }
+  }
+
   .back { font-size: 0.875rem; color: var(--color-muted); transition: color 0.2s; display: inline-block; margin-bottom: 3rem; }
   .back:hover { color: var(--color-text); }
 </style>
