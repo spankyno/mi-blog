@@ -1,0 +1,246 @@
+---
+import Base from '../../layouts/Base.astro';
+
+const db = Astro.locals.runtime?.env?.DB;
+
+const url = new URL(Astro.request.url);
+const s = url.searchParams;
+
+// Sanitización estricta de parámetros
+const startDate = s.get('start')?.match(/^\d{4}-\d{2}-\d{2}$/) ? s.get('start') : null;
+const endDate = s.get('end')?.match(/^\d{4}-\d{2}-\d{2}$/) ? s.get('end') : null;
+const ipFilter = s.get('ip')?.replace(/[^0-9a-fA-F.:]/g, '').slice(0, 45) || null;
+const isBot = ['0', '1'].includes(s.get('is_bot') ?? '') ? s.get('is_bot') : null;
+const limitRaw = parseInt(s.get('limit') ?? '50');
+const limit = Math.min(Math.max(isNaN(limitRaw) ? 50 : limitRaw, 1), 500);
+
+let visitas: any[] = [];
+let total = 0;
+let error = '';
+
+if (db) {
+  try {
+    let query = `SELECT id, slug, viewed_at, ip, country, city, user_agent, referer, is_bot FROM page_views WHERE 1=1`;
+    let countQuery = `SELECT COUNT(*) as n FROM page_views WHERE 1=1`;
+    const params: any[] = [];
+    const countParams: any[] = [];
+
+    if (startDate && endDate) {
+      query += ` AND date(viewed_at) BETWEEN ? AND ?`;
+      countQuery += ` AND date(viewed_at) BETWEEN ? AND ?`;
+      params.push(startDate, endDate);
+      countParams.push(startDate, endDate);
+    }
+    if (ipFilter) {
+      query += ` AND ip = ?`;
+      countQuery += ` AND ip = ?`;
+      params.push(ipFilter);
+      countParams.push(ipFilter);
+    }
+    if (isBot !== null) {
+      query += ` AND is_bot = ?`;
+      countQuery += ` AND is_bot = ?`;
+      params.push(parseInt(isBot));
+      countParams.push(parseInt(isBot));
+    }
+
+    query += ` ORDER BY viewed_at DESC LIMIT ?`;
+    params.push(limit);
+
+    const [rVisitas, rTotal] = await Promise.all([
+      db.prepare(query).bind(...params).all(),
+      db.prepare(countQuery).bind(...countParams).first(),
+    ]);
+
+    visitas = rVisitas.results ?? [];
+    total = (rTotal as any)?.n ?? 0;
+  } catch (e: any) {
+    error = 'Error al consultar la base de datos.';
+  }
+}
+
+const countryNames: Record<string, string> = {
+  ES: '🇪🇸 ES', US: '🇺🇸 US', BE: '🇧🇪 BE', FR: '🇫🇷 FR',
+  DE: '🇩🇪 DE', MX: '🇲🇽 MX', AR: '🇦🇷 AR', GB: '🇬🇧 GB',
+  IT: '🇮🇹 IT', PT: '🇵🇹 PT', BR: '🇧🇷 BR', CO: '🇨🇴 CO',
+  NL: '🇳🇱 NL', PL: '🇵🇱 PL', SE: '🇸🇪 SE', CL: '🇨🇱 CL',
+};
+---
+<Base title="Visitas detalladas — Panel">
+  <main>
+    <div class="topbar">
+      <h1>Visitas detalladas</h1>
+      <a href="/panel" class="btn-back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><line x1="19" x2="5" y1="12" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+        Panel
+      </a>
+    </div>
+
+    <!-- Filtros -->
+    <form class="filters" method="GET" action="/panel/visitas">
+      <div class="filter-group">
+        <label for="start">Desde</label>
+        <input type="date" id="start" name="start" value={startDate ?? ''} />
+      </div>
+      <div class="filter-group">
+        <label for="end">Hasta</label>
+        <input type="date" id="end" name="end" value={endDate ?? ''} />
+      </div>
+      <div class="filter-group">
+        <label for="ip">IP</label>
+        <input type="text" id="ip" name="ip" value={ipFilter ?? ''} placeholder="0.0.0.0" maxlength="45" />
+      </div>
+      <div class="filter-group">
+        <label for="is_bot">Bot</label>
+        <select id="is_bot" name="is_bot">
+          <option value="">Todos</option>
+          <option value="0" selected={isBot === '0'}>No</option>
+          <option value="1" selected={isBot === '1'}>Sí</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label for="limit">Límite</label>
+        <input type="number" id="limit" name="limit" value={limit} min="1" max="500" style="width: 70px;" />
+      </div>
+      <div class="filter-actions">
+        <button type="submit" class="btn-filter">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+          Filtrar
+        </button>
+        <a href="/panel/visitas" class="btn-clear">Limpiar</a>
+      </div>
+    </form>
+
+    <!-- Info total -->
+    <div class="result-info">
+      {error
+        ? <span class="error-msg">{error}</span>
+        : <span>Mostrando <strong>{visitas.length}</strong> de <strong>{total}</strong> registros</span>
+      }
+    </div>
+
+    <!-- Tabla -->
+    {!error && (
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Post</th>
+              <th>País</th>
+              <th>Ciudad</th>
+              <th>IP</th>
+              <th>User-agent</th>
+              <th>Referer</th>
+              <th>Bot</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visitas.length === 0 && (
+              <tr><td colspan="8" class="empty">No se encontraron registros.</td></tr>
+            )}
+            {visitas.map((v: any) => (
+              <tr class={v.is_bot ? 'row-bot' : ''}>
+                <td class="td-date">
+                  <div>{v.viewed_at?.split('T')[0] ?? '—'}</div>
+                  <div class="time">{v.viewed_at?.split('T')[1]?.slice(0,5) ?? ''}</div>
+                </td>
+                <td class="td-slug" title={v.slug}>{v.slug}</td>
+                <td>{v.country ? (countryNames[v.country] ?? v.country) : '—'}</td>
+                <td>{v.city ?? '—'}</td>
+                <td class="td-ip">{v.ip ?? '—'}</td>
+                <td class="td-ua" title={v.user_agent ?? ''}>{v.user_agent ?? '—'}</td>
+                <td class="td-ref" title={v.referer ?? ''}>{v.referer ?? '—'}</td>
+                <td>{v.is_bot ? <span class="badge-bot">bot</span> : '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )}
+  </main>
+</Base>
+
+<style>
+  main { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+
+  .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; }
+  h1 { font-family: var(--font-display); font-size: 2rem; font-weight: 400; letter-spacing: -0.02em; }
+  .btn-back {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    font-size: 0.85rem; color: var(--color-muted);
+    border: 1px solid var(--color-border); padding: 0.45rem 1rem;
+    border-radius: 4px; text-decoration: none; transition: color 0.2s, border-color 0.2s;
+  }
+  .btn-back:hover { color: var(--color-text); border-color: var(--color-text); }
+
+  /* Filtros */
+  .filters {
+    display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: flex-end;
+    background: #f9f9f7; border: 1px solid var(--color-border);
+    border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1rem;
+  }
+  .filter-group { display: flex; flex-direction: column; gap: 0.3rem; }
+  .filter-group label {
+    font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--color-muted);
+  }
+  .filter-group input, .filter-group select {
+    font-family: var(--font-body); font-size: 0.85rem;
+    border: 1px solid var(--color-border); border-radius: 5px;
+    padding: 0.4rem 0.65rem; background: white; color: var(--color-text);
+    transition: border-color 0.2s;
+  }
+  .filter-group input:focus, .filter-group select:focus {
+    outline: none; border-color: var(--color-text);
+  }
+  .filter-actions { display: flex; align-items: flex-end; gap: 0.5rem; }
+  .btn-filter {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    background: var(--color-text); color: var(--color-bg);
+    border: none; padding: 0.45rem 1rem; border-radius: 5px;
+    font-size: 0.85rem; font-family: var(--font-body); cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  .btn-filter:hover { opacity: 0.75; }
+  .btn-clear {
+    font-size: 0.82rem; color: var(--color-muted); text-decoration: none;
+    padding: 0.45rem 0.5rem; transition: color 0.2s;
+  }
+  .btn-clear:hover { color: var(--color-text); }
+
+  .result-info { font-size: 0.82rem; color: var(--color-muted); margin-bottom: 0.75rem; }
+  .error-msg { color: #dc2626; }
+
+  /* Tabla */
+  .table-wrap {
+    border: 1px solid var(--color-border); border-radius: 8px;
+    overflow: auto; max-height: calc(100vh - 320px);
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  thead th {
+    position: sticky; top: 0; z-index: 10;
+    background: var(--color-text); color: var(--color-bg);
+    padding: 0.65rem 0.85rem; text-align: left;
+    font-size: 0.72rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    white-space: nowrap;
+  }
+  td { padding: 0.6rem 0.85rem; border-bottom: 1px solid var(--color-border); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #f5f5f2; }
+  tr.row-bot td { color: var(--color-muted); }
+
+  .td-date { white-space: nowrap; }
+  .time { font-size: 0.75rem; color: var(--color-muted); }
+  .td-slug { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .td-ip { font-family: monospace; font-size: 0.78rem; white-space: nowrap; }
+  .td-ua { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.75rem; color: var(--color-muted); }
+  .td-ref { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.75rem; color: var(--color-muted); }
+
+  .badge-bot {
+    font-size: 0.68rem; background: #fef3c7; color: #92400e;
+    padding: 0.1rem 0.45rem; border-radius: 99px; font-weight: 500;
+  }
+  .empty { text-align: center; color: var(--color-muted); padding: 2rem; }
+</style>
