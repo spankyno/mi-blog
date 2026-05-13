@@ -15,12 +15,39 @@ if (db) {
 if (!post) return Astro.redirect('/panel');
 
 const contentHtml = sanitizeHtml(String(await marked(post.content ?? '')), {
-  allowedTags: sanitizeHtml.defaults.allowedTags.concat(['img', 'h1', 'h2', 'h3']),
+  allowedTags: sanitizeHtml.defaults.allowedTags.concat(['img', 'h1', 'h2', 'h3', 'br']),
   allowedAttributes: {
     ...sanitizeHtml.defaults.allowedAttributes,
-    'img': ['src', 'alt', 'class'],
+    'img': ['src', 'alt', 'class', 'style', 'width', 'height'],
     'a': ['href', 'target', 'rel'],
-    '*': ['class']
+    'p': ['style'],
+    'div': ['style'],
+    'span': ['style'],
+    '*': ['class', 'style']
+  },
+  allowedStyles: {
+    '*': {
+      'width': [/^\d+(%|px|em|rem|vw)$/],
+      'max-width': [/^\d+(%|px|em|rem|vw)$/],
+      'height': [/^\d+(%|px|em|rem|vh)$/],
+      'display': [/^(block|inline|inline-block|flex|none)$/],
+      'margin': [/^[\d\s.]+(%|px|em|rem|auto).*$/],
+      'margin-top': [/^[\d.]+(px|em|rem|%)$|^auto$/],
+      'margin-bottom': [/^[\d.]+(px|em|rem|%)$|^auto$/],
+      'margin-left': [/^[\d.]+(px|em|rem|%)$|^auto$/],
+      'margin-right': [/^[\d.]+(px|em|rem|%)$|^auto$/],
+      'padding': [/^[\d\s.]+(px|em|rem|%).*$/],
+      'text-align': [/^(left|right|center|justify)$/],
+      'float': [/^(left|right|none)$/],
+      'border-radius': [/^[\d.]+(px|em|rem|%).*$/],
+      'background-color': [/^#[0-9a-fA-F]{3,8}$|^rgb|^rgba|^[a-z]+$/],
+      'color': [/^#[0-9a-fA-F]{3,8}$|^rgb|^rgba|^[a-z]+$/],
+      'font-size': [/^[\d.]+(px|em|rem|%)$/],
+      'font-weight': [/^(normal|bold|[1-9]00)$/],
+      'line-height': [/^[\d.]+(%|px|em|rem)?$/],
+      'border': [/^.+$/],
+      'border-left': [/^.+$/],
+    }
   }
 });
 ---
@@ -115,7 +142,7 @@ const contentHtml = sanitizeHtml(String(await marked(post.content ?? '')), {
   }
   .content :global(code) { font-size: 0.875rem; background: #f4f4f2; padding: 0.15em 0.4em; border-radius: 3px; }
   .content :global(pre code) { background: none; padding: 0; }
-  .content :global(img) { max-width: 100%; border-radius: 6px; margin: 1rem 0; }
+  .content :global(img) { max-width: 100%; border-radius: 6px; }
   .back { font-size: 0.875rem; color: var(--color-muted); transition: color 0.2s; display: inline-block; margin-bottom: 2rem; }
   .back:hover { color: var(--color-text); }
 </style>
