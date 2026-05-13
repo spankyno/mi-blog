@@ -7,8 +7,9 @@ const url = new URL(Astro.request.url);
 const s = url.searchParams;
 
 // Sanitización estricta de parámetros
-const startDate = s.get('start')?.match(/^\d{4}-\d{2}-\d{2}$/) ? s.get('start') : null;
-const endDate = s.get('end')?.match(/^\d{4}-\d{2}-\d{2}$/) ? s.get('end') : null;
+const todayUTC = new Date().toISOString().split('T')[0];
+const startDate = s.get('start')?.match(/^\d{4}-\d{2}-\d{2}$/) ? s.get('start') : todayUTC;
+const endDate = s.get('end')?.match(/^\d{4}-\d{2}-\d{2}$/) ? s.get('end') : todayUTC;
 const ipFilter = s.get('ip')?.replace(/[^0-9a-fA-F.:]/g, '').slice(0, 45) || null;
 const isBot = ['0', '1'].includes(s.get('is_bot') ?? '') ? s.get('is_bot') : null;
 const limitRaw = parseInt(s.get('limit') ?? '50');
@@ -130,9 +131,9 @@ const countryNames: Record<string, string> = {
               <th>País</th>
               <th>Ciudad</th>
               <th>IP</th>
-              <th>User-agent</th>
               <th>Referer</th>
               <th>Bot</th>
+              <th>User-agent</th>
             </tr>
           </thead>
           <tbody>
@@ -141,17 +142,17 @@ const countryNames: Record<string, string> = {
             )}
             {visitas.map((v: any) => (
               <tr class={v.is_bot ? 'row-bot' : ''}>
-                <td class="td-date">
-                  <div>{v.viewed_at?.split('T')[0] ?? '—'}</div>
-                  <div class="time">{v.viewed_at?.split('T')[1]?.slice(0,5) ?? ''}</div>
+                <td class="td-date" data-utc={v.viewed_at ?? ''}>
+                  <div class="td-date-day">{v.viewed_at?.split('T')[0] ?? '—'}</div>
+                  <div class="time td-date-time">{v.viewed_at?.split('T')[1]?.slice(0,5) ?? ''}</div>
                 </td>
                 <td class="td-slug" title={v.slug}>{v.slug}</td>
                 <td>{v.country ? (countryNames[v.country] ?? v.country) : '—'}</td>
                 <td>{v.city ?? '—'}</td>
                 <td class="td-ip">{v.ip ?? '—'}</td>
-                <td class="td-ua" title={v.user_agent ?? ''}>{v.user_agent ?? '—'}</td>
                 <td class="td-ref" title={v.referer ?? ''}>{v.referer ?? '—'}</td>
                 <td>{v.is_bot ? <span class="badge-bot">bot</span> : '—'}</td>
+                <td class="td-ua" title={v.user_agent ?? ''}>{v.user_agent ?? '—'}</td>
               </tr>
             ))}
           </tbody>
@@ -159,6 +160,18 @@ const countryNames: Record<string, string> = {
       </div>
     )}
   </main>
+<script>
+  // Convertir fechas UTC a hora local del navegador
+  document.querySelectorAll('td[data-utc]').forEach(td => {
+    const utc = td.getAttribute('data-utc');
+    if (!utc) return;
+    const d = new Date(utc);
+    const dayEl = td.querySelector('.td-date-day');
+    const timeEl = td.querySelector('.td-date-time');
+    if (dayEl) dayEl.textContent = d.toLocaleDateString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit' });
+    if (timeEl) timeEl.textContent = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+  });
+</script>
 </Base>
 
 <style>
