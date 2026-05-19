@@ -72,6 +72,11 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const url = new URL(context.request.url);
   const isPanel = url.pathname.startsWith('/panel');
 
+  // Excluir rutas XML — no necesitan cabeceras de seguridad web
+  if (url.pathname === '/sitemap.xml' || url.pathname === '/rss.xml') {
+    return next();
+  }
+
   // Auth del panel
   if (isPanel) {
     if (url.pathname !== '/panel/login' && !url.pathname.startsWith('/api/panel/auth')) {
