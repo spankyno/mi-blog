@@ -82,7 +82,11 @@ export const onRequest = defineMiddleware(async (context, next) => {
     if (url.pathname !== '/panel/login' && !url.pathname.startsWith('/api/panel/auth')) {
       const cookie = context.request.headers.get('cookie') ?? '';
       const token = cookie.split(';').find(c => c.trim().startsWith(`${JWT_COOKIE}=`))?.split('=')[1]?.trim();
-      const secret = context.locals.runtime?.env?.JWT_SECRET ?? 'fallback-secret-change-me';
+      const secret = context.locals.runtime?.env?.JWT_SECRET;
+
+      if (!secret) {
+        return new Response('Configuración de servidor incompleta (falta JWT_SECRET).', { status: 500 });
+      }
 
       if (!token || !await verifyJWT(token, secret)) {
         return Response.redirect(new URL('/panel/login', context.request.url));
