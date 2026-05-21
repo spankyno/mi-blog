@@ -78,6 +78,7 @@ function pageUrl(p: number) {
           class="search-input"
           id="search-input"
           autocomplete="off"
+          transition:persist="search-input"
         />
         {q && <a href="/blog" class="clear-search" aria-label="Limpiar búsqueda">✕</a>}
       </form>
@@ -138,12 +139,21 @@ function pageUrl(p: number) {
 </Base>
 
 <script>
+  import { navigate } from 'astro:transitions/client';
+
   const input = document.getElementById('search-input') as HTMLInputElement;
   const form = document.getElementById('search-form') as HTMLFormElement;
   let timer: ReturnType<typeof setTimeout>;
+  
   input?.addEventListener('input', () => {
     clearTimeout(timer);
-    timer = setTimeout(() => form.submit(), 400);
+    timer = setTimeout(() => {
+      const url = new URL(form.action);
+      if (input.value.trim()) {
+        url.searchParams.set('q', input.value.trim());
+      }
+      navigate(url.toString());
+    }, 400);
   });
 </script>
 
@@ -181,7 +191,7 @@ function pageUrl(p: number) {
     font-size: 0.875rem;
     font-weight: 300;
     color: var(--color-text);
-    background: white;
+    background: transparent;
     border: 1px solid var(--color-border);
     border-radius: 99px;
     padding: 0.45rem 2rem 0.45rem 1rem;
