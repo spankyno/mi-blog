@@ -16,6 +16,7 @@ export function cloudinaryOgImage(title: string): string {
   );
 
   const layers = [
+    'w_1200,h_630,c_fill',           // recorta a 1200x630 exactos
     'e_gradient_fade,y_-0.5,b_rgb:080e1a',
     `l_text:Arial_40_bold:${safeTitle},co_rgb:f5f2ec,g_south_west,x_80,y_100,w_900,c_fit`,
     'l_text:Arial_22:aitorsanchez.pages.dev,co_rgb:c9a84c,g_south_west,x_80,y_54',
