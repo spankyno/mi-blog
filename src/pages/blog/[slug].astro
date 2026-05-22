@@ -4,7 +4,7 @@ import Header from '../../components/Header.astro';
 import Footer from '../../components/Footer.astro';
 import { marked } from 'marked';
 import sanitizeHtml from 'sanitize-html';
-import { cloudinaryOptimize } from '../../lib/images';
+import { cloudinaryOptimize, cloudinaryOgImage } from '../../lib/images';
 
 const { slug } = Astro.params;
 const db = Astro.locals.runtime?.env?.DB;
@@ -123,9 +123,7 @@ if (db) {
 
 const SITE_URL = 'https://aitorsanchez.pages.dev';
 const postUrl = `${SITE_URL}/blog/${slug}`;
-const ogImage = post.hero_image?.startsWith('http')
-  ? cloudinaryOptimize(post.hero_image, 1200)
-  : `${SITE_URL}/images/foto-portada.webp`;
+const ogImage = cloudinaryOgImage(post.title);
 
 const shareX = `https://x.com/intent/tweet?text=${encodeURIComponent(post.title)}&url=${encodeURIComponent(postUrl)}`;
 const shareWa = `https://wa.me/?text=${encodeURIComponent(`${post.title} ${postUrl}`)}`;
