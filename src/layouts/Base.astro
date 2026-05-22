@@ -8,6 +8,8 @@ interface Props {
   ogType?: string;
   pubDate?: string;
   canonical?: string;
+  heroImage?: string;       // URL optimizada para preload (solo en posts)
+  heroImageMobile?: string; // Versión 640px para srcset del preload
 }
 
 const SITE_URL = 'https://aitorsanchez.pages.dev';
@@ -34,6 +36,8 @@ const {
   ogType = 'website',
   pubDate,
   canonical = `${SITE_URL}${Astro.url.pathname}`,
+  heroImage,
+  heroImageMobile,
 } = Astro.props;
 
 const fullTitle = title === SITE_NAME ? title : `${title} — ${SITE_NAME}`;
@@ -96,6 +100,22 @@ const breadcrumbLd = ogType === 'article' ? {
     <meta name="google-site-verification" content="fK2gZcSYwHHPqDFWdIB5WD1eVONqa6kwIFqkRDRyX4g" />
     <link rel="canonical" href={canonical} />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- Preload hero image (solo en posts) — crítico para LCP -->
+    {heroImage && (
+      <link
+        rel="preload"
+        as="image"
+        href={heroImage}
+        imagesrcset={heroImageMobile ? `${heroImageMobile} 640w, ${heroImage} 1200w` : heroImage}
+        imagesizes="(max-width: 640px) 640px, 1200px"
+        fetchpriority="high"
+      />
+    )}
+
+    <!-- DNS prefetch como fallback para navegadores sin preconnect -->
+    <link rel="dns-prefetch" href="https://res.cloudinary.com" />
+    <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
     <link rel="alternate" type="application/rss+xml" title="Aitor Sánchez Gutiérrez" href="/rss.xml" />
 
     <!-- Open Graph -->
@@ -156,7 +176,16 @@ const breadcrumbLd = ogType === 'article' ? {
     <!-- Fuentes -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,700;9..40,800&display=swap" rel="stylesheet" />
+    <!-- Fuentes: media=print trick para carga no bloqueante -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,700;9..40,800&display=swap"
+      rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
+    />
+    <noscript>
+      <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,700;9..40,800&display=swap" rel="stylesheet" />
+    </noscript>
 
     <script is:inline>
       const theme = (() => {
