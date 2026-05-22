@@ -49,11 +49,21 @@ const jsonLd = ogType === 'article'
       '@type': 'BlogPosting',
       headline: title,
       description,
-      image: ogImage,
+      image: {
+        '@type': 'ImageObject',
+        url: ogImage,
+        width: 1200,
+        height: 630,
+        alt: fullTitle,
+      },
       author,
       publisher: author,
       url: canonical,
       ...(pubDate ? { datePublished: pubDate } : {}),
+      mainEntityOfPage: {
+        '@type': 'WebPage',
+        '@id': canonical
+      }
     }
   : {
       '@context': 'https://schema.org',
