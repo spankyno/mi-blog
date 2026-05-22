@@ -19,7 +19,7 @@ if (db) {
       </div>
       <nav class="footer-nav" aria-label="Enlaces del pie de página">
         <a href="/blog">Blog</a>
-        <a href="/rss.xml" title="Feed RSS">RSS</a>
+        <a href="/rss.xml" title="Feed RSS" aria-label="Feed RSS — suscribirse">RSS</a>
         <a href="https://aitorhub.vercel.app/" target="_blank" rel="noopener noreferrer">Aitor's Hub</a>
         <a href="https://aitor-blog-contacto.vercel.app/" target="_blank" rel="noopener noreferrer">Contacto</a>
         <a href="/privacidad">Privacidad</a>
@@ -142,6 +142,11 @@ if (db) {
     white-space: nowrap;
   }
   .footer-nav a:hover { color: var(--color-text); }
+  .footer-nav a:focus-visible {
+    outline: 2px solid var(--color-text);
+    outline-offset: 3px;
+    border-radius: 3px;
+  }
 
   .footer-stack {
     display: flex;
@@ -178,6 +183,11 @@ if (db) {
   .footer-copy { font-size: 0.78rem; color: var(--color-muted); font-style: normal; }
   .footer-copy a { color: var(--color-muted); text-decoration: underline; text-underline-offset: 3px; transition: color 0.2s; }
   .footer-copy a:hover { color: var(--color-text); }
+  .footer-copy a:focus-visible {
+    outline: 2px solid var(--color-text);
+    outline-offset: 3px;
+    border-radius: 3px;
+  }
 
   @media (max-width: 560px) {
     .footer-top { flex-direction: column; align-items: flex-start; }

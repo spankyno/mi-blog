@@ -8,21 +8,23 @@ const nav = [
 ];
 const current = Astro.url.pathname;
 ---
+<a href="#main-content" class="skip-link">Saltar al contenido</a>
 <header>
-  <nav>
+  <nav aria-label="Navegación principal">
     <ul class="nav-links">
       {nav.map(({ label, href, external }) => (
         <li>
           <a
             href={href}
             class={!external && (href === '/' ? current === '/' : current.startsWith(href)) ? 'active' : ''}
+            aria-current={!external && (href === '/' ? current === '/' : current.startsWith(href)) ? 'page' : undefined}
             target={external ? '_blank' : undefined}
             rel={external ? 'noopener noreferrer' : undefined}
           >{label}</a>
         </li>
       ))}
     </ul>
-    <button id="theme-toggle" aria-label="Cambiar tema">
+    <button id="theme-toggle" aria-label="Activar modo oscuro" aria-pressed="false">
       <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
       <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
     </button>
@@ -38,14 +40,23 @@ const current = Astro.url.pathname;
     const newBtn = btn.cloneNode(true);
     btn.parentNode?.replaceChild(newBtn, btn);
     
+    // Sync aria-label and aria-pressed with current theme on load
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    newBtn.setAttribute('aria-pressed', isDark ? 'true' : 'false');
+    newBtn.setAttribute('aria-label', isDark ? 'Activar modo claro' : 'Activar modo oscuro');
+
     newBtn.addEventListener('click', () => {
       const isDarkNow = document.documentElement.getAttribute('data-theme') === 'dark';
       if (isDarkNow) {
         document.documentElement.removeAttribute('data-theme');
         localStorage.setItem('theme', 'light');
+        newBtn.setAttribute('aria-pressed', 'false');
+        newBtn.setAttribute('aria-label', 'Activar modo oscuro');
       } else {
         document.documentElement.setAttribute('data-theme', 'dark');
         localStorage.setItem('theme', 'dark');
+        newBtn.setAttribute('aria-pressed', 'true');
+        newBtn.setAttribute('aria-label', 'Activar modo claro');
       }
     });
   }
@@ -112,6 +123,47 @@ const current = Astro.url.pathname;
   :global(html[data-theme='dark']) .sun-icon { display: none; }
   :global(html:not([data-theme='dark'])) .moon-icon { display: none; }
   
+  /* Skip link — visible solo con teclado */
+  .skip-link {
+    position: absolute;
+    top: -100%;
+    left: 1rem;
+    background: var(--color-text);
+    color: var(--color-bg);
+    padding: 0.5rem 1rem;
+    border-radius: 0 0 6px 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    z-index: 200;
+    transition: top 0.2s;
+  }
+  .skip-link:focus-visible {
+    top: 0;
+  }
+
+  /* Focus visible global para navegación con teclado */
+  :global(:focus-visible) {
+    outline: 2px solid var(--color-text);
+    outline-offset: 3px;
+    border-radius: 3px;
+  }
+  :global(:focus:not(:focus-visible)) {
+    outline: none;
+  }
+
+  /* Focus específico en links de nav */
+  .nav-links a:focus-visible {
+    outline: 2px solid var(--color-text);
+    outline-offset: 3px;
+    border-radius: 3px;
+  }
+
+  /* Focus en el botón de tema */
+  #theme-toggle:focus-visible {
+    outline: 2px solid var(--color-text);
+    outline-offset: 3px;
+  }
+
   @media (max-width: 600px) {
     .nav-links {
       gap: 1rem;
