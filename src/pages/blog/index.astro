@@ -2,6 +2,7 @@
 import Base from '../../layouts/Base.astro';
 import Header from '../../components/Header.astro';
 import Footer from '../../components/Footer.astro';
+import { cloudinaryOptimize } from '../../lib/images';
 
 const db = Astro.locals.runtime?.env?.DB;
 
@@ -64,7 +65,7 @@ function pageUrl(p: number) {
   <Header />
 
   <section class="blog-hero">
-    <img src="/images/foto-portada.png" alt="Blog de Aitor Sánchez" fetchpriority="high" loading="eager" />
+    <img src="/images/foto-portada.webp" alt="Blog de Aitor Sánchez" fetchpriority="high" loading="eager" width="600" height="314" />
   </section>
 
   <main>
@@ -99,10 +100,12 @@ function pageUrl(p: number) {
             <div class="post-thumb">
               {post.hero_image
                 ? <img
-                    src={post.hero_image}
+                    src={cloudinaryOptimize(post.hero_image, 112)}
                     alt={post.title}
                     loading="lazy"
                     decoding="async"
+                    width="56"
+                    height="56"
                     transition:name={`hero-${post.slug}`}
                     transition:animate="initial"
                   />

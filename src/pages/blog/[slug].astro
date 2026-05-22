@@ -4,6 +4,7 @@ import Header from '../../components/Header.astro';
 import Footer from '../../components/Footer.astro';
 import { marked } from 'marked';
 import sanitizeHtml from 'sanitize-html';
+import { cloudinaryOptimize } from '../../lib/images';
 
 const { slug } = Astro.params;
 const db = Astro.locals.runtime?.env?.DB;
@@ -123,8 +124,8 @@ if (db) {
 const SITE_URL = 'https://aitorsanchez.pages.dev';
 const postUrl = `${SITE_URL}/blog/${slug}`;
 const ogImage = post.hero_image?.startsWith('http')
-  ? post.hero_image
-  : `${SITE_URL}/images/foto-portada.png`;
+  ? cloudinaryOptimize(post.hero_image, 1200)
+  : `${SITE_URL}/images/foto-portada.webp`;
 
 const shareX = `https://x.com/intent/tweet?text=${encodeURIComponent(post.title)}&url=${encodeURIComponent(postUrl)}`;
 const shareWa = `https://wa.me/?text=${encodeURIComponent(`${post.title} ${postUrl}`)}`;
@@ -146,13 +147,20 @@ const shareEmail = `mailto:?subject=${encodeURIComponent(post.title)}&body=${enc
         <p class="desc">{post.description}</p>
       </header>
       {post.hero_image && (
-        <img
-          src={post.hero_image}
-          alt={post.title}
-          class="hero-img"
-          transition:name={`hero-${slug}`}
-          transition:animate="initial"
-        />
+        <picture>
+          <source media="(max-width: 640px)" srcset={cloudinaryOptimize(post.hero_image, 640)} type="image/webp" />
+          <img
+            src={cloudinaryOptimize(post.hero_image, 1200)}
+            alt={post.title}
+            class="hero-img"
+            width="1200"
+            height="300"
+            loading="eager"
+            fetchpriority="high"
+            transition:name={`hero-${slug}`}
+            transition:animate="initial"
+          />
+        </picture>
       )}
       <div class="content" set:html={contentHtml} />
     </article>
@@ -227,7 +235,7 @@ const shareEmail = `mailto:?subject=${encodeURIComponent(post.title)}&body=${enc
           {postAnterior ? (
             <a href={`/blog/${postAnterior.slug}`} class="post-nav-link post-nav-prev">
               {postAnterior.hero_image && (
-                <img src={postAnterior.hero_image} alt={postAnterior.title} class="post-nav-img" loading="lazy" />
+                <img src={cloudinaryOptimize(postAnterior.hero_image, 400)} alt={postAnterior.title} class="post-nav-img" loading="lazy" width="400" height="100" />
               )}
               <div class="post-nav-content">
                 <span class="post-nav-label">
@@ -241,7 +249,7 @@ const shareEmail = `mailto:?subject=${encodeURIComponent(post.title)}&body=${enc
           {postSiguiente ? (
             <a href={`/blog/${postSiguiente.slug}`} class="post-nav-link post-nav-next">
               {postSiguiente.hero_image && (
-                <img src={postSiguiente.hero_image} alt={postSiguiente.title} class="post-nav-img" loading="lazy" />
+                <img src={cloudinaryOptimize(postSiguiente.hero_image, 400)} alt={postSiguiente.title} class="post-nav-img" loading="lazy" width="400" height="100" />
               )}
               <div class="post-nav-content">
                 <span class="post-nav-label">
