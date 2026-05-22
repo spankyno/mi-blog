@@ -137,6 +137,8 @@ const shareEmail = `mailto:?subject=${encodeURIComponent(post.title)}&body=${enc
   ogType="article"
   ogImage={ogImage}
   pubDate={post.pub_date}
+  heroImage={cloudinaryOptimize(post.hero_image, 1200)}
+  heroImageMobile={cloudinaryOptimize(post.hero_image, 640)}
 >
   <Header />
   <main>
@@ -335,7 +337,14 @@ const shareEmail = `mailto:?subject=${encodeURIComponent(post.title)}&body=${enc
     margin-bottom: 1rem;
   }
   .desc { color: var(--color-muted); font-size: 1.05rem; }
-  .hero-img { width: 100%; height: 300px; object-fit: cover; margin-bottom: 2rem; }
+  .hero-img {
+    width: 100%;
+    aspect-ratio: 1200 / 480;
+    object-fit: cover;
+    margin-bottom: 2rem;
+    /* color de fondo mientras carga: elimina flash blanco (CLS visual) */
+    background: #0d1b2e;
+  }
 
 
   /* Compartir */
