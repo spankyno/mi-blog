@@ -236,6 +236,11 @@ const breadcrumbLd = ogType === 'article' ? {
       a { color: inherit; text-decoration: none; -webkit-tap-highlight-color: transparent; }
       a:visited { color: inherit; }
 
+      /* Target del skip link */
+      main:target, main[id]:focus {
+        outline: none;
+      }
+
       /* Estilos Globales para contenido Markdown (.content) */
       .content {
         font-size: clamp(1rem, 2.5vw, 1.075rem);
