@@ -122,11 +122,11 @@ const breadcrumbLd = ogType === 'article' ? {
     <meta property="og:type" content={ogType} />
     <meta property="og:site_name" content={SITE_NAME} />
     <meta property="og:title" content={fullTitle} />
-    <meta property="og:description" content={description} />
+    <meta property="og:description" content={ogType === 'article' ? title : description} />
     <meta property="og:url" content={canonical} />
     <meta property="og:image" content={ogImage} />
-    <meta property="og:image:width" content="1400" />
-    <meta property="og:image:height" content="736" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content={fullTitle} />
     <meta property="og:locale" content="es_ES" />
     {ogType === 'article' && pubDate && (
@@ -139,7 +139,7 @@ const breadcrumbLd = ogType === 'article' ? {
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={fullTitle} />
-    <meta name="twitter:description" content={description} />
+    <meta name="twitter:description" content={ogType === 'article' ? title : description} />
     <meta name="twitter:image" content={ogImage} />
 
     <!-- JSON-LD Schema.org -->
