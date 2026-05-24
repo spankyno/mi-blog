@@ -163,7 +163,7 @@ const initialContent = post.content ?? '';
   label { display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.875rem; font-weight: 500; color: var(--color-muted); }
   input[type="text"], input[type="date"] {
     font-family: inherit; font-size: 1rem; font-weight: 300; color: var(--color-text);
-    background: white; border: 1px solid var(--color-border); border-radius: 6px;
+    background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 6px;
     padding: 0.65rem 0.9rem; transition: border-color 0.2s; width: 100%;
   }
   input:focus { outline: none; border-color: var(--color-text); }
@@ -194,4 +194,65 @@ const initialContent = post.content ?? '';
   }
   .btn-save:hover { opacity: 0.75; }
   .hint { font-weight: 300; font-size: 0.8rem; }
+
+  /* ── Modo oscuro: inputs y editor ── */
+  html[data-theme='dark'] input[type="text"],
+  html[data-theme='dark'] input[type="date"] {
+    background: #1e1e1e;
+    color: var(--color-text);
+    border-color: var(--color-border);
+  }
+  html[data-theme='dark'] input[type="text"]::placeholder {
+    color: var(--color-muted);
+  }
+
+  /* Editor Markdown (ByteMD) en modo oscuro */
+  html[data-theme='dark'] .bytemd,
+  html[data-theme='dark'] .bytemd-toolbar,
+  html[data-theme='dark'] .CodeMirror,
+  html[data-theme='dark'] .bytemd-preview {
+    background: #1e1e1e !important;
+    color: var(--color-text) !important;
+    border-color: var(--color-border) !important;
+  }
+  html[data-theme='dark'] .bytemd-toolbar {
+    background: #2a2a2a !important;
+    border-bottom-color: var(--color-border) !important;
+  }
+  html[data-theme='dark'] .bytemd-toolbar-icon:hover,
+  html[data-theme='dark'] .bytemd-toolbar-icon.bytemd-tippy-active {
+    background: #3a3a3a !important;
+  }
+  html[data-theme='dark'] .bytemd-toolbar-icon svg {
+    fill: var(--color-muted) !important;
+  }
+  html[data-theme='dark'] .CodeMirror-cursor {
+    border-left-color: var(--color-text) !important;
+  }
+  html[data-theme='dark'] .CodeMirror-selected {
+    background: #3a3a5c !important;
+  }
+  html[data-theme='dark'] .bytemd-preview h1,
+  html[data-theme='dark'] .bytemd-preview h2,
+  html[data-theme='dark'] .bytemd-preview h3,
+  html[data-theme='dark'] .bytemd-preview p,
+  html[data-theme='dark'] .bytemd-preview li {
+    color: var(--color-text) !important;
+  }
+  html[data-theme='dark'] .bytemd-preview a {
+    color: #7dd3fc !important;
+  }
+  html[data-theme='dark'] .bytemd-preview code,
+  html[data-theme='dark'] .bytemd-preview pre {
+    background: #2a2a2a !important;
+    color: #e2e8f0 !important;
+  }
+  html[data-theme='dark'] .bytemd-split-line {
+    background: var(--color-border) !important;
+  }
+  html[data-theme='dark'] .bytemd-status {
+    background: #2a2a2a !important;
+    border-top-color: var(--color-border) !important;
+    color: var(--color-muted) !important;
+  }
 </style>
