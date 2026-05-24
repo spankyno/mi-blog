@@ -387,4 +387,107 @@ if (Astro.request.method === 'POST') {
   html[data-theme='dark'] .toastui-editor-main ::-webkit-scrollbar-thumb {
     background: #3f3f46 !important;
   }
+
+  /* ── Toast UI: override estilos inyectados por el bundle JS ──
+     El editor inyecta color:#222 y color:rgb(34,34,34) via <style> interno.
+     Necesitamos especificidad máxima para ganarles. ── */
+
+  html[data-theme='dark'] #editor .toastui-editor-defaultUI,
+  html[data-theme='dark'] #editor .toastui-editor-main-container,
+  html[data-theme='dark'] #editor .toastui-editor-md-container,
+  html[data-theme='dark'] #editor .toastui-editor-md-mode,
+  html[data-theme='dark'] #editor .toastui-editor-main {
+    background-color: #1e1e1e !important;
+    color: #e5e5e5 !important;
+    border-color: var(--color-border) !important;
+  }
+
+  /* ProseMirror: sobreescribe color:rgb(34,34,34) inyectado por JS */
+  html[data-theme='dark'] #editor .ProseMirror {
+    background-color: #1e1e1e !important;
+    color: #e5e5e5 !important;
+    caret-color: #e5e5e5 !important;
+  }
+
+  /* Todo el texto dentro del editor */
+  html[data-theme='dark'] #editor .ProseMirror * {
+    color: #e5e5e5 !important;
+  }
+
+  /* Delimitadores Markdown (**, ##, etc) — más tenues */
+  html[data-theme='dark'] #editor .toastui-editor-md-delimiter,
+  html[data-theme='dark'] #editor .toastui-editor-md-meta,
+  html[data-theme='dark'] #editor .toastui-editor-md-url {
+    color: #6b7280 !important;
+  }
+
+  /* Negrita y cursiva — más brillante */
+  html[data-theme='dark'] #editor .toastui-editor-md-strong,
+  html[data-theme='dark'] #editor .toastui-editor-md-emph {
+    color: #ffffff !important;
+  }
+
+  /* Headings */
+  html[data-theme='dark'] #editor .toastui-editor-md-heading {
+    color: #ffffff !important;
+  }
+
+  /* Links */
+  html[data-theme='dark'] #editor .toastui-editor-md-link {
+    color: #7dd3fc !important;
+  }
+
+  /* Toolbar */
+  html[data-theme='dark'] #editor .toastui-editor-toolbar {
+    background-color: #2a2a2a !important;
+    border-bottom: 1px solid var(--color-border) !important;
+  }
+  html[data-theme='dark'] #editor .toastui-editor-toolbar-icons {
+    color: #a1a1aa !important;
+    background-color: transparent !important;
+    border-color: transparent !important;
+  }
+  html[data-theme='dark'] #editor .toastui-editor-toolbar-icons:hover {
+    background-color: #3a3a3a !important;
+    color: #e5e5e5 !important;
+  }
+  html[data-theme='dark'] #editor .toastui-editor-toolbar-divider {
+    background-color: var(--color-border) !important;
+  }
+
+  /* Separador vertical MD | Preview */
+  html[data-theme='dark'] #editor .toastui-editor-md-splitter {
+    background-color: var(--color-border) !important;
+  }
+
+  /* Panel preview (lado derecho) */
+  html[data-theme='dark'] #editor .toastui-editor-preview,
+  html[data-theme='dark'] #editor .toastui-editor-ww-container {
+    background-color: #181818 !important;
+    color: #e5e5e5 !important;
+  }
+  html[data-theme='dark'] #editor .toastui-editor-preview * {
+    color: #e5e5e5 !important;
+  }
+  html[data-theme='dark'] #editor .toastui-editor-preview a {
+    color: #7dd3fc !important;
+  }
+  html[data-theme='dark'] #editor .toastui-editor-preview code,
+  html[data-theme='dark'] #editor .toastui-editor-preview pre {
+    background-color: #2a2a2a !important;
+    color: #e2e8f0 !important;
+  }
+
+  /* Tabs Markdown / WYSIWYG */
+  html[data-theme='dark'] #editor .toastui-editor-mode-switch {
+    background-color: #2a2a2a !important;
+    border-top: 1px solid var(--color-border) !important;
+  }
+  html[data-theme='dark'] #editor .toastui-editor-mode-switch .tab-item {
+    color: #6b7280 !important;
+  }
+  html[data-theme='dark'] #editor .toastui-editor-mode-switch .tab-item.active {
+    color: #e5e5e5 !important;
+    background-color: #1e1e1e !important;
+  }
 </style>
