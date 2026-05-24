@@ -190,7 +190,7 @@ if (Astro.request.method === 'POST') {
   .btn-save:hover { opacity: 0.75; }
   .hint { font-weight: 300; font-size: 0.8rem; }
 
-  /* ── Modo oscuro: inputs y editor ── */
+  /* ── Modo oscuro: inputs ── */
   html[data-theme='dark'] input[type="text"],
   html[data-theme='dark'] input[type="date"] {
     background: #1e1e1e;
@@ -201,53 +201,95 @@ if (Astro.request.method === 'POST') {
     color: var(--color-muted);
   }
 
-  /* Editor Markdown (ByteMD) en modo oscuro */
-  html[data-theme='dark'] .bytemd,
-  html[data-theme='dark'] .bytemd-toolbar,
-  html[data-theme='dark'] .CodeMirror,
-  html[data-theme='dark'] .bytemd-preview {
+  /* ── Toast UI Editor en modo oscuro ── */
+
+  /* Contenedor principal y toolbar */
+  html[data-theme='dark'] .toastui-editor-defaultUI,
+  html[data-theme='dark'] .toastui-editor-toolbar,
+  html[data-theme='dark'] .toastui-editor-toolbar-group,
+  html[data-theme='dark'] .toastui-editor-main {
     background: #1e1e1e !important;
-    color: var(--color-text) !important;
     border-color: var(--color-border) !important;
   }
-  html[data-theme='dark'] .bytemd-toolbar {
-    background: #2a2a2a !important;
-    border-bottom-color: var(--color-border) !important;
-  }
-  html[data-theme='dark'] .bytemd-toolbar-icon:hover,
-  html[data-theme='dark'] .bytemd-toolbar-icon.bytemd-tippy-active {
-    background: #3a3a3a !important;
-  }
-  html[data-theme='dark'] .bytemd-toolbar-icon svg {
-    fill: var(--color-muted) !important;
-  }
-  html[data-theme='dark'] .CodeMirror-cursor {
-    border-left-color: var(--color-text) !important;
-  }
-  html[data-theme='dark'] .CodeMirror-selected {
-    background: #3a3a5c !important;
-  }
-  html[data-theme='dark'] .bytemd-preview h1,
-  html[data-theme='dark'] .bytemd-preview h2,
-  html[data-theme='dark'] .bytemd-preview h3,
-  html[data-theme='dark'] .bytemd-preview p,
-  html[data-theme='dark'] .bytemd-preview li {
+
+  /* Botones de la toolbar */
+  html[data-theme='dark'] .toastui-editor-toolbar-icons {
+    background: #1e1e1e !important;
+    border-color: var(--color-border) !important;
     color: var(--color-text) !important;
   }
-  html[data-theme='dark'] .bytemd-preview a {
-    color: #7dd3fc !important;
+  html[data-theme='dark'] .toastui-editor-toolbar-icons:hover,
+  html[data-theme='dark'] .toastui-editor-toolbar-icons.active {
+    background: #2a2a2a !important;
   }
-  html[data-theme='dark'] .bytemd-preview code,
-  html[data-theme='dark'] .bytemd-preview pre {
+
+  /* Área de escritura ProseMirror */
+  html[data-theme='dark'] .ProseMirror,
+  html[data-theme='dark'] .toastui-editor-contents,
+  html[data-theme='dark'] .toastui-editor-md-container,
+  html[data-theme='dark'] .toastui-editor-ww-container {
+    background: #1e1e1e !important;
+    color: #e5e5e5 !important;
+    caret-color: #e5e5e5 !important;
+  }
+
+  /* Texto dentro del editor */
+  html[data-theme='dark'] .ProseMirror p,
+  html[data-theme='dark'] .ProseMirror h1,
+  html[data-theme='dark'] .ProseMirror h2,
+  html[data-theme='dark'] .ProseMirror h3,
+  html[data-theme='dark'] .ProseMirror li,
+  html[data-theme='dark'] .ProseMirror blockquote,
+  html[data-theme='dark'] .toastui-editor-contents p,
+  html[data-theme='dark'] .toastui-editor-contents h1,
+  html[data-theme='dark'] .toastui-editor-contents h2,
+  html[data-theme='dark'] .toastui-editor-contents h3,
+  html[data-theme='dark'] .toastui-editor-contents li {
+    color: #e5e5e5 !important;
+  }
+
+  /* Código inline y bloques de código */
+  html[data-theme='dark'] .ProseMirror code,
+  html[data-theme='dark'] .ProseMirror pre,
+  html[data-theme='dark'] .toastui-editor-contents code,
+  html[data-theme='dark'] .toastui-editor-contents pre {
     background: #2a2a2a !important;
     color: #e2e8f0 !important;
+    border-color: var(--color-border) !important;
   }
-  html[data-theme='dark'] .bytemd-split-line {
+
+  /* Links */
+  html[data-theme='dark'] .ProseMirror a,
+  html[data-theme='dark'] .toastui-editor-contents a {
+    color: #7dd3fc !important;
+  }
+
+  /* Separador entre editor y preview */
+  html[data-theme='dark'] .toastui-editor-md-splitter {
     background: var(--color-border) !important;
   }
-  html[data-theme='dark'] .bytemd-status {
+
+  /* Tabs Markdown / WYSIWYG */
+  html[data-theme='dark'] .toastui-editor-mode-switch {
     background: #2a2a2a !important;
-    border-top-color: var(--color-border) !important;
+    border-color: var(--color-border) !important;
+  }
+  html[data-theme='dark'] .toastui-editor-mode-switch .tab-item {
+    color: var(--color-muted) !important;
+  }
+  html[data-theme='dark'] .toastui-editor-mode-switch .tab-item.active {
+    color: var(--color-text) !important;
+    background: #1e1e1e !important;
+  }
+
+  /* Selección de texto */
+  html[data-theme='dark'] .ProseMirror ::selection {
+    background: #3a3a5c !important;
+    color: #e5e5e5 !important;
+  }
+
+  /* Placeholder */
+  html[data-theme='dark'] .ProseMirror .placeholder {
     color: var(--color-muted) !important;
   }
 </style>
