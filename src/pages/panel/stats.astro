@@ -81,7 +81,13 @@ const maxMes = Math.max(...ultimos12.map(m => m.n), 1);
   <main>
     <div class="topbar">
       <h1>Estadísticas</h1>
-      <a href="/panel" class="btn-back">← Panel</a>
+      <div style="display:flex;gap:0.6rem;align-items:center;">
+        <button id="stats-theme-toggle" class="btn-back btn-theme" aria-label="Activar modo oscuro" aria-pressed="false" style="cursor:pointer;font-family:inherit;">
+          <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+          <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </button>
+        <a href="/panel" class="btn-back">← Panel</a>
+      </div>
     </div>
 
     <!-- Tarjetas resumen -->
@@ -220,13 +226,13 @@ const maxMes = Math.max(...ultimos12.map(m => m.n), 1);
   .btn-back:hover { color: var(--color-text); border-color: var(--color-text); }
 
   .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
-  .card { background: #f5f5f2; border-radius: 8px; padding: 1rem 1.25rem; }
+  .card { background: var(--color-row-hover); border-radius: 8px; padding: 1rem 1.25rem; }
   .card-label { font-size: 0.8rem; color: var(--color-muted); margin-bottom: 0.25rem; }
   .card-value { font-size: 1.75rem; font-weight: 500; letter-spacing: -0.02em; }
 
   .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
 
-  .box { background: #fff; border: 1px solid var(--color-border); border-radius: 8px; padding: 1.25rem; }
+  .box { background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 8px; padding: 1.25rem; }
   h2 { font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; color: var(--color-muted); margin-bottom: 1rem; }
   .empty { font-size: 0.9rem; color: var(--color-muted); }
 
@@ -238,6 +244,10 @@ const maxMes = Math.max(...ultimos12.map(m => m.n), 1);
   .bar-fill { height: 4px; border-radius: 4px; min-width: 4px; }
   .bar-purple { background: #6d63d4; }
   .bar-green { background: #0f6e56; }
+  html[data-theme='dark'] .bar-purple { background: #8b82e8; }
+  html[data-theme='dark'] .bar-green { background: #34d399; }
+  html[data-theme='dark'] .chart-bar { background: #8b82e8; }
+  html[data-theme='dark'] .bar-month { background: #34d399; }
 
   .chart { display: flex; align-items: flex-end; gap: 6px; height: 110px; padding-top: 1.5rem; }
   .chart-wide { height: 130px; gap: 4px; }
@@ -252,13 +262,38 @@ const maxMes = Math.max(...ultimos12.map(m => m.n), 1);
   th { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 2px solid var(--color-border); color: var(--color-muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500; }
   td { padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--color-border); vertical-align: middle; }
   tr:last-child td { border-bottom: none; }
-  tr:hover td { background: #f9f9f7; }
+  tr:hover td { background: var(--color-row-hover); }
   .td-slug { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .td-date { color: var(--color-muted); white-space: nowrap; }
   .badge-bot { font-size: 0.7rem; background: #fef3c7; color: #92400e; padding: 0.15rem 0.5rem; border-radius: 99px; font-weight: 500; }
+  html[data-theme='dark'] .badge-bot { background: #451a03; color: #fcd34d; }
 
   @media (max-width: 600px) {
     .cards { grid-template-columns: repeat(2, 1fr); }
     .grid-2 { grid-template-columns: 1fr; }
   }
+  html:not([data-theme='dark']) .moon-icon { display: none; }
+  html[data-theme='dark'] .sun-icon { display: none; }
 </style>
+
+<script>
+  const themeBtn = document.getElementById('stats-theme-toggle');
+  if (themeBtn) {
+    const isDark = () => document.documentElement.getAttribute('data-theme') === 'dark';
+    const syncBtn = () => {
+      themeBtn.setAttribute('aria-pressed', isDark() ? 'true' : 'false');
+      themeBtn.setAttribute('aria-label', isDark() ? 'Activar modo claro' : 'Activar modo oscuro');
+    };
+    syncBtn();
+    themeBtn.addEventListener('click', () => {
+      if (isDark()) {
+        document.documentElement.removeAttribute('data-theme');
+        localStorage.setItem('theme', 'light');
+      } else {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        localStorage.setItem('theme', 'dark');
+      }
+      syncBtn();
+    });
+  }
+</script>
