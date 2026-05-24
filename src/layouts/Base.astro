@@ -100,6 +100,20 @@ const breadcrumbLd = ogType === 'article' ? {
 <!DOCTYPE html>
 <html lang="es">
   <head>
+    <!-- Anti-flicker: DEBE ser el primer script del <head>.
+         Lee localStorage o prefers-color-scheme ANTES de pintar el HTML.
+         Sin esto el body aparece en claro y luego salta a oscuro (FOUC). -->
+    <script is:inline>
+      (function() {
+        try {
+          var stored = localStorage.getItem('theme');
+          if (stored === 'dark' || (!stored && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.setAttribute('data-theme', 'dark');
+          }
+        } catch(e) {}
+      })();
+    </script>
+
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
@@ -197,23 +211,6 @@ const breadcrumbLd = ogType === 'article' ? {
       <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,700;9..40,800&display=swap" rel="stylesheet" />
     </noscript>
 
-    <script is:inline>
-      const theme = (() => {
-        if (typeof localStorage !== 'undefined' && localStorage.getItem('theme')) {
-          return localStorage.getItem('theme');
-        }
-        if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-          return 'dark';
-        }
-        return 'light';
-      })();
-      if (theme === 'dark') {
-        document.documentElement.setAttribute('data-theme', 'dark');
-      } else {
-        document.documentElement.removeAttribute('data-theme');
-      }
-    </script>
-
     <style is:global>
       *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
       :root {
@@ -225,6 +222,11 @@ const breadcrumbLd = ogType === 'article' ? {
         --color-border: #e5e5e0;
         --color-accent: #1a1a18;
         --color-glass: rgba(250, 250, 248, 0.75);
+        --color-row-hover: #f0f0ec;
+        --color-selection-bg: #1a1a18;
+        --color-selection-text: #fafaf8;
+        --color-scrollbar-track: #f0f0ec;
+        --color-scrollbar-thumb: #c8c8c4;
         --max-width: 740px;
       }
       html[data-theme='dark'] {
@@ -234,7 +236,30 @@ const breadcrumbLd = ogType === 'article' ? {
         --color-border: #27272a;
         --color-accent: #ffffff;
         --color-glass: rgba(18, 18, 18, 0.75);
+        --color-row-hover: #1e1e1e;
+        --color-selection-bg: #e5e5e5;
+        --color-selection-text: #121212;
+        --color-scrollbar-track: #1a1a1a;
+        --color-scrollbar-thumb: #3f3f46;
       }
+
+      /* ── Selección de texto ── */
+      ::selection {
+        background: var(--color-selection-bg);
+        color: var(--color-selection-text);
+      }
+
+      /* ── Scrollbar personalizada (Chromium) ── */
+      ::-webkit-scrollbar { width: 8px; height: 8px; }
+      ::-webkit-scrollbar-track { background: var(--color-scrollbar-track); }
+      ::-webkit-scrollbar-thumb {
+        background: var(--color-scrollbar-thumb);
+        border-radius: 4px;
+        border: 2px solid var(--color-scrollbar-track);
+      }
+      ::-webkit-scrollbar-thumb:hover { background: var(--color-muted); }
+      /* Firefox */
+      * { scrollbar-width: thin; scrollbar-color: var(--color-scrollbar-thumb) var(--color-scrollbar-track); }
       body {
         font-family: var(--font-body);
         background: var(--color-bg);
@@ -334,6 +359,27 @@ const breadcrumbLd = ogType === 'article' ? {
     </div>
 
     <script>
+      // Re-aplica el tema en cada navegación con View Transitions
+      // sin esto el data-theme se pierde al navegar entre páginas
+      function applyTheme() {
+        try {
+          var stored = localStorage.getItem('theme');
+          if (stored === 'dark' || (!stored && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.setAttribute('data-theme', 'dark');
+          } else {
+            document.documentElement.removeAttribute('data-theme');
+          }
+        } catch(e) {}
+      }
+      document.addEventListener('astro:before-swap', function(e) {
+        // Propaga el data-theme al nuevo documento antes del swap
+        var theme = document.documentElement.getAttribute('data-theme');
+        if (theme) {
+          e.newDocument.documentElement.setAttribute('data-theme', theme);
+        }
+      });
+      document.addEventListener('astro:page-load', applyTheme);
+
       function checkAviso() {
         if (localStorage.getItem('aviso-ok')) {
           const el = document.getElementById('aviso-privacidad');
