@@ -123,6 +123,34 @@ if (Astro.request.method === 'POST') {
       (document.getElementById('content-input') as HTMLInputElement).value = editor.getMarkdown();
     });
 
+    // Inyectar estilos modo oscuro DESPUÉS de que Toast UI inyecte los suyos
+    function applyDarkEditorStyles() {
+      const id = 'toast-dark-override';
+      if (document.getElementById(id)) return;
+      const style = document.createElement('style');
+      style.id = id;
+      style.textContent = `
+        html[data-theme="dark"] .ProseMirror { color: #e5e5e5 !important; background: #1e1e1e !important; }
+        html[data-theme="dark"] .toastui-editor-main-container { color: #e5e5e5 !important; background: #1e1e1e !important; }
+        html[data-theme="dark"] .toastui-editor-main-container * { color: #e5e5e5 !important; }
+        html[data-theme="dark"] .ProseMirror div { color: #e5e5e5 !important; }
+        html[data-theme="dark"] .toastui-editor-md-delimiter { color: #6b7280 !important; }
+        html[data-theme="dark"] .toastui-editor-md-strong { color: #ffffff !important; }
+        html[data-theme="dark"] .toastui-editor-md-heading { color: #ffffff !important; }
+        html[data-theme="dark"] .toastui-editor-md-link { color: #7dd3fc !important; }
+      `;
+      document.head.appendChild(style);
+    }
+    applyDarkEditorStyles();
+
+    // Re-aplicar si cambia el tema mientras el editor está abierto
+    const observer = new MutationObserver(() => {
+      const existing = document.getElementById('toast-dark-override');
+      if (existing) existing.remove();
+      applyDarkEditorStyles();
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
     const heroInput = document.getElementById('hero-image-input') as HTMLInputElement;
     const preview = document.getElementById('image-preview') as HTMLDivElement;
     const previewImg = document.getElementById('preview-img') as HTMLImageElement;
@@ -489,10 +517,5 @@ if (Astro.request.method === 'POST') {
   html[data-theme='dark'] #editor .toastui-editor-mode-switch .tab-item.active {
     color: #e5e5e5 !important;
     background-color: #1e1e1e !important;
-  }
-
-  /* Nodos de texto plano dentro de divs del ProseMirror — fix color fieldtext */
-  html[data-theme='dark'] #editor .ProseMirror div {
-    color: #e5e5e5 !important;
   }
 </style>
