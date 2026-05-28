@@ -190,7 +190,7 @@ const countryNames: Record<string, string> = {
   /* Filtros */
   .filters {
     display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: flex-end;
-    background: #f9f9f7; border: 1px solid var(--color-border);
+    background: var(--color-bg); border: 1px solid var(--color-border);
     border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1rem;
   }
   .filter-group { display: flex; flex-direction: column; gap: 0.3rem; }
@@ -201,7 +201,7 @@ const countryNames: Record<string, string> = {
   .filter-group input, .filter-group select {
     font-family: var(--font-body); font-size: 0.85rem;
     border: 1px solid var(--color-border); border-radius: 5px;
-    padding: 0.4rem 0.65rem; background: white; color: var(--color-text);
+    padding: 0.4rem 0.65rem; background: var(--color-bg); color: var(--color-text);
     transition: border-color 0.2s;
   }
   .filter-group input:focus, .filter-group select:focus {
@@ -241,7 +241,7 @@ const countryNames: Record<string, string> = {
   }
   td { padding: 0.6rem 0.85rem; border-bottom: 1px solid var(--color-border); vertical-align: middle; }
   tr:last-child td { border-bottom: none; }
-  tr:hover td { background: #f5f5f2; }
+  tr:hover td { background: var(--color-row-hover); color: var(--color-text); }
   tr.row-bot td { color: var(--color-muted); }
 
   .td-date { white-space: nowrap; }
