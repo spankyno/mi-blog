@@ -75,8 +75,28 @@ if (db && !isPrefetch) {
     const city = cf?.city ?? hdrs.get('cf-ipcity') ?? null;
     const userAgent = hdrs.get('user-agent') ?? null;
     const referer = hdrs.get('referer') ?? null;
-    const botPatterns = /bot|crawler|spider|curl|python|wget|scrapy|headless/i;
-    const isBot = userAgent ? (botPatterns.test(userAgent) ? 1 : 0) : 0;
+
+    // ── Detección de bots en tres capas ──────────────────────────────────────
+    //
+    // Capa 1: Cloudflare Bot Management score (0 = humano, 99 = bot seguro)
+    //   Disponible en el objeto cf de Cloudflare Workers.
+    const cfBotScore: number = (cf as any)?.botManagement?.score ?? 50;
+    const isBotByCf = cfBotScore >= 30; // por debajo de 30 se considera humano
+
+    // Capa 2: User-Agent patterns (lista ampliada)
+    //   Cubre Googlebot, Bingbot, crawlers de SEO, scrapers, etc.
+    const botPatterns = /bot|crawler|spider|curl|python|wget|scrapy|headless|
+      slurp|duckduck|baiduspider|yandex|sogou|exabot|facebot|ia_archiver|
+      semrush|ahrefs|mj12bot|dotbot|rogerbot|screaming.frog|petalbot|
+      gptbot|chatgpt|claude|anthropic|cohere|perplexity|bytespider/xi;
+    const isBotByUA = userAgent ? botPatterns.test(userAgent) : false;
+
+    // Capa 3: User-Agent vacío o nulo
+    //   Muchos crawlers básicos no envían User-Agent.
+    const isBotByNoUA = !userAgent || userAgent.trim() === '';
+
+    const isBot = (isBotByCf || isBotByUA || isBotByNoUA) ? 1 : 0;
+    // ─────────────────────────────────────────────────────────────────────────
     const viewedAt = new Date().toISOString();
 
     const insertPromise = db.prepare(
