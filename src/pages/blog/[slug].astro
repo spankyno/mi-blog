@@ -80,8 +80,8 @@ if (db && !isPrefetch) {
     //
     // Capa 1: Cloudflare Bot Management score (0 = humano, 99 = bot seguro)
     //   Disponible en el objeto cf de Cloudflare Workers.
-    const cfBotScore: number = (cf as any)?.botManagement?.score ?? 50;
-    const isBotByCf = cfBotScore >= 30; // por debajo de 30 se considera humano
+    const cfBotScore: number = (cf as any)?.botManagement?.score ?? 99;
+    const isBotByCf = cfBotScore < 30; // por debajo de 30 se considera bot
 
     // Capa 2: User-Agent patterns (lista ampliada)
     //   Cubre Googlebot, Bingbot, crawlers de SEO, scrapers, etc.
