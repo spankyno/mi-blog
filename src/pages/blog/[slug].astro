@@ -85,7 +85,7 @@ if (db && !isPrefetch) {
 
     // Capa 2: User-Agent patterns (lista ampliada)
     //   Cubre Googlebot, Bingbot, crawlers de SEO, scrapers, etc.
-    const botPatterns = /bot|crawler|spider|curl|python|wget|scrapy|headless|slurp|duckduck|baiduspider|yandex|sogou|exabot|facebot|ia_archiver|semrush|ahrefs|mj12bot|dotbot|rogerbot|screaming\.frog|petalbot|gptbot|chatgpt|claude|anthropic|cohere|perplexity|bytespider/i;
+    const botPatterns = /\bbot\b|crawler|spider|curl|python|wget|scrapy|headless|slurp|duckduck|baiduspider|yandex|sogou|exabot|facebot|ia_archiver|semrush|ahrefs|mj12bot|dotbot|rogerbot|screaming\.frog|petalbot|gptbot|chatgpt|claude|anthropic|cohere|perplexity|bytespider/i;
     const isBotByUA = userAgent ? botPatterns.test(userAgent) : false;
 
     // Capa 3: User-Agent vacío o nulo
