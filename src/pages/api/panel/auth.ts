@@ -32,15 +32,18 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const db = locals.runtime?.env?.DB;
   const env = locals.runtime?.env;
 
-  let body: any;
+  // Leer credenciales desde form-urlencoded (form nativo del navegador)
+  let user: string, pass: string;
   try {
-    body = await request.json();
+    const form = await request.formData();
+    user = (form.get('user') as string)?.trim() ?? '';
+    pass = (form.get('pass') as string) ?? '';
   } catch {
-    return new Response('JSON inválido', { status: 400 });
+    return new Response('Formulario inválido', { status: 400 });
   }
 
-  const { user, pass } = body;
   const ip = request.headers.get('cf-connecting-ip') ?? 'unknown';
+  const redirectTo = new URL(request.url).searchParams.get('redirect') ?? '/panel';
 
   // Rate limiting: máximo 5 intentos por IP en 15 minutos
   if (db) {
@@ -50,10 +53,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     ).bind(ip).first().catch(() => null);
 
     if ((recent as any)?.n >= MAX_ATTEMPTS) {
-      return new Response(JSON.stringify({ error: `Demasiados intentos. Espera ${BLOCK_MINUTES} minutos.` }), {
-        status: 429,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return Response.redirect(new URL('/panel/login?error=too_many', request.url), 302);
     }
   }
 
@@ -61,10 +61,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const expectedPass = env?.ADMIN_PASS;
   const secret = env?.JWT_SECRET;
   if (!secret) {
-    return new Response(JSON.stringify({ error: 'Error de configuración del servidor' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return new Response('Error de configuración del servidor', { status: 500 });
   }
 
   const valid = user === expectedUser && pass === expectedPass;
@@ -77,19 +74,18 @@ export const POST: APIRoute = async ({ request, locals }) => {
   }
 
   if (!valid) {
-    return new Response(JSON.stringify({ error: 'Credenciales incorrectas' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return Response.redirect(new URL('/panel/login?error=invalid', request.url), 302);
   }
 
   const token = await createJWT(secret);
   const maxAge = 8 * 3600;
 
-  return new Response(JSON.stringify({ ok: true }), {
-    status: 200,
+  // Login correcto — emitir cookie y redirigir al panel
+  const safeRedirect = redirectTo.startsWith('/') ? redirectTo : '/panel';
+  return new Response(null, {
+    status: 302,
     headers: {
-      'Content-Type': 'application/json',
+      'Location': safeRedirect,
       'Set-Cookie': `${JWT_COOKIE}=${token}; HttpOnly; Secure; SameSite=Strict; Path=/panel; Max-Age=${maxAge}`,
     },
   });
