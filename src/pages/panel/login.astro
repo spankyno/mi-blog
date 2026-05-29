@@ -1,6 +1,8 @@
 ---
-// Si ya tiene sesión válida, redirigir al panel
-// (el middleware ya maneja esto, pero por si acaso)
+// El middleware redirige al panel si ya hay sesión válida.
+// auth.ts redirige aquí con ?error=invalid o ?error=too_many si el login falla.
+const error = Astro.url.searchParams.get('error');
+const redirect = Astro.url.searchParams.get('redirect') ?? '/panel';
 ---
 <!DOCTYPE html>
 <html lang="es">
@@ -83,9 +85,7 @@
       padding: 0.65rem 0.9rem;
       border-radius: 6px;
       font-size: 0.875rem;
-      display: none;
     }
-    .error.visible { display: block; }
     button[type="submit"] {
       width: 100%;
       background: var(--color-text);
@@ -107,69 +107,28 @@
   <div class="card">
     <h1>Panel</h1>
     <p class="subtitle">Acceso restringido</p>
-    <div class="fields">
-      <div id="error-msg" class="error"></div>
+    <form
+      method="POST"
+      action={`/api/panel/auth?redirect=${encodeURIComponent(redirect)}`}
+      enctype="application/x-www-form-urlencoded"
+      class="fields"
+    >
+      {error === 'invalid' && (
+        <div class="error visible">Usuario o contraseña incorrectos.</div>
+      )}
+      {error === 'too_many' && (
+        <div class="error visible">Demasiados intentos fallidos. Espera 15 minutos.</div>
+      )}
       <label>
         Usuario
-        <input type="text" id="user" autocomplete="username" autofocus />
+        <input type="text" name="user" autocomplete="username" autofocus required />
       </label>
       <label>
         Contraseña
-        <input type="password" id="pass" autocomplete="current-password" />
+        <input type="password" name="pass" autocomplete="current-password" required />
       </label>
-      <button type="submit" id="submit-btn">Entrar</button>
-    </div>
+      <button type="submit">Entrar</button>
+    </form>
   </div>
-
-  <script>
-    async function doLogin() {
-      const user = (document.getElementById('user') as HTMLInputElement).value.trim();
-      const pass = (document.getElementById('pass') as HTMLInputElement).value;
-      const btn = document.getElementById('submit-btn') as HTMLButtonElement;
-      const errorMsg = document.getElementById('error-msg') as HTMLDivElement;
-
-      errorMsg.classList.remove('visible');
-
-      if (!user || !pass) {
-        errorMsg.textContent = 'Introduce usuario y contraseña.';
-        errorMsg.classList.add('visible');
-        return;
-      }
-
-      btn.disabled = true;
-      btn.textContent = 'Comprobando...';
-
-      try {
-        const res = await fetch('/api/panel/auth', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user, pass }),
-        });
-
-        if (res.ok) {
-          window.location.href = '/panel';
-        } else {
-          const data = await res.json();
-          errorMsg.textContent = data.error ?? 'Error de acceso.';
-          errorMsg.classList.add('visible');
-          btn.disabled = false;
-          btn.textContent = 'Entrar';
-        }
-      } catch {
-        errorMsg.textContent = 'Error de conexión. Inténtalo de nuevo.';
-        errorMsg.classList.add('visible');
-        btn.disabled = false;
-        btn.textContent = 'Entrar';
-      }
-    }
-
-    // Login con Enter
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') doLogin();
-    });
-
-    // Login con botón
-    document.getElementById('submit-btn')?.addEventListener('click', doLogin);
-  </script>
 </body>
 </html>
