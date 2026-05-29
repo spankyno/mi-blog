@@ -59,7 +59,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   const expectedUser = env?.ADMIN_USER;
   const expectedPass = env?.ADMIN_PASS;
-  const secret = env?.JWT_SECRET ?? 'fallback-secret-change-me';
+  const secret = env?.JWT_SECRET;
+  if (!secret) {
+    return new Response(JSON.stringify({ error: 'Error de configuración del servidor' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
 
   const valid = user === expectedUser && pass === expectedPass;
 
