@@ -16,7 +16,23 @@ const CSP_PUBLIC = [
   "upgrade-insecure-requests",
 ].join('; ');
 
+// CSP para el panel general (sin editor) — sin unsafe-eval
 const CSP_PANEL = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' https://uicdn.toast.com https://www.googletagmanager.com",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://uicdn.toast.com",
+  "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data: https: blob:",
+  "connect-src 'self' https://www.google-analytics.com https://analytics.google.com",
+  "frame-src 'none'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join('; ');
+
+// CSP para páginas con Toast UI Editor — requiere unsafe-eval
+// Solo aplica a /panel/nuevo y /panel/editar/*
+const CSP_EDITOR = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://uicdn.toast.com https://www.googletagmanager.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://uicdn.toast.com",
@@ -29,14 +45,16 @@ const CSP_PANEL = [
   "form-action 'self'",
 ].join('; ');
 
-function addSecurityHeaders(response: Response, isPanel: boolean): Response {
+function addSecurityHeaders(response: Response, isPanel: boolean, isEditor: boolean): Response {
   const headers = new Headers(response.headers);
   headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
   headers.set('X-Frame-Options', 'DENY');
   headers.set('X-Content-Type-Options', 'nosniff');
   headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), bluetooth=()');
-  headers.set('Content-Security-Policy', isPanel ? CSP_PANEL : CSP_PUBLIC);
+  headers.set('X-Robots-Tag', isPanel ? 'noindex, nofollow' : 'index, follow');
+  const csp = isEditor ? CSP_EDITOR : (isPanel ? CSP_PANEL : CSP_PUBLIC);
+  headers.set('Content-Security-Policy', csp);
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
@@ -71,6 +89,9 @@ async function verifyJWT(token: string, secret: string): Promise<boolean> {
 export const onRequest = defineMiddleware(async (context, next) => {
   const url = new URL(context.request.url);
   const isPanel = url.pathname.startsWith('/panel');
+  // Solo las páginas con el editor necesitan unsafe-eval
+  const isEditor = url.pathname === '/panel/nuevo' ||
+                   url.pathname.startsWith('/panel/editar/');
 
   // Excluir rutas XML — no necesitan cabeceras de seguridad web
   if (url.pathname === '/sitemap.xml' || url.pathname === '/rss.xml') {
@@ -96,5 +117,5 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
   // Añadir cabeceras de seguridad a la respuesta
   const response = await next();
-  return addSecurityHeaders(response, isPanel);
+  return addSecurityHeaders(response, isPanel, isEditor);
 });
