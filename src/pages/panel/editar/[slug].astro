@@ -99,7 +99,7 @@ const initialContent = post.content ?? '';
         </label>
         <label>
           Slug (URL)
-          <input type="text" name="slug" required value={post.slug} pattern="[a-z0-9-]+" />
+          <input type="text" name="slug" required value={post.slug} pattern="[-a-z0-9]+" />
         </label>
       </div>
 
