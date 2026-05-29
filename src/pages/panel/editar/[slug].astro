@@ -21,6 +21,27 @@ if (Astro.request.method === 'POST') {
   const draft = form.get('draft') === 'on' ? 1 : 0;
   const hero_image = (form.get('hero_image') as string)?.trim() || null;
 
+  // ── Validación server-side ────────────────────────────────────────────────
+  const slugRegex = /^[a-z0-9-]+$/;
+  const urlRegex = /^https?:\/\/.+/i;
+
+  if (!title || title.length > 200) {
+    return new Response('Título inválido o demasiado largo', { status: 400 });
+  }
+  if (!newSlug || !slugRegex.test(newSlug) || newSlug.length > 100) {
+    return new Response('Slug inválido (solo minúsculas, números y guiones)', { status: 400 });
+  }
+  if (!pub_date || isNaN(Date.parse(pub_date))) {
+    return new Response('Fecha de publicación inválida', { status: 400 });
+  }
+  if (hero_image && !urlRegex.test(hero_image)) {
+    return new Response('URL de imagen inválida', { status: 400 });
+  }
+  if (content && content.length > 200000) {
+    return new Response('Contenido demasiado largo', { status: 400 });
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
   if (db && title && newSlug) {
     await db.prepare(
       `UPDATE posts SET slug=?, title=?, description=?, content=?, pub_date=?, draft=?, hero_image=? WHERE slug=?`
