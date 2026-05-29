@@ -11,8 +11,30 @@ if (db) {
 
 if (!post) return Astro.redirect('/panel');
 
+// ── CSRF: generar token y almacenarlo en cookie de sesión corta ─────────────
+// El token se embebe en el form y se verifica en el POST.
+// Usamos crypto.randomUUID() nativo de Cloudflare Workers — sin dependencias.
+const csrfToken = crypto.randomUUID();
+// Emitir cookie httpOnly con el token — expira en 1 hora
+Astro.response.headers.append(
+  'Set-Cookie',
+  `csrf_token=${csrfToken}; HttpOnly; Secure; SameSite=Strict; Path=/panel; Max-Age=3600`
+);
+
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
+  // ── Verificar CSRF token ─────────────────────────────────────────────────
+  const submittedToken = (form.get('_csrf') as string) ?? '';
+  const cookieCsrf = (Astro.request.headers.get('cookie') ?? '')
+    .split(';')
+    .find(c => c.trim().startsWith('csrf_token='))
+    ?.split('=')[1]?.trim() ?? '';
+
+  if (!submittedToken || !cookieCsrf || submittedToken !== cookieCsrf) {
+    return new Response('Token CSRF inválido o expirado. Vuelve a cargar la página.', { status: 403 });
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
   const title = (form.get('title') as string)?.trim();
   const newSlug = (form.get('slug') as string)?.trim();
   const description = (form.get('description') as string)?.trim();
@@ -69,6 +91,7 @@ const initialContent = post.content ?? '';
     </div>
 
     <form method="POST" id="post-form">
+      <input type="hidden" name="_csrf" value={csrfToken} />
       <div class="row two">
         <label>
           Título
