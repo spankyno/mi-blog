@@ -5,6 +5,43 @@ import { marked } from 'marked';
 import sanitizeHtml from 'sanitize-html';
 
 const { slug } = Astro.params;
+
+// ── Segunda línea de defensa: verificación explícita de sesión ───────────────
+// El middleware ya protege /panel/*, pero si falla por cualquier razón
+// esta página quedaría expuesta — los borradores nunca deben ser públicos.
+const JWT_COOKIE = 'panel_token';
+const cookie = Astro.request.headers.get('cookie') ?? '';
+const token = cookie.split(';').find(c => c.trim().startsWith(`${JWT_COOKIE}=`))?.split('=')[1]?.trim();
+const secret = Astro.locals.runtime?.env?.JWT_SECRET;
+
+if (!token || !secret) {
+  return Astro.redirect('/panel/login');
+}
+
+// Verificar firma del JWT sin librerías externas (Web Crypto API)
+async function verifyJWT(t: string, s: string): Promise<boolean> {
+  try {
+    const [headerB64, payloadB64, signatureB64] = t.split('.');
+    if (!headerB64 || !payloadB64 || !signatureB64) return false;
+    const payload = JSON.parse(atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/')));
+    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) return false;
+    const key = await crypto.subtle.importKey(
+      'raw', new TextEncoder().encode(s),
+      { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']
+    );
+    const sig = Uint8Array.from(
+      atob(signatureB64.replace(/-/g, '+').replace(/_/g, '/')),
+      c => c.charCodeAt(0)
+    );
+    return await crypto.subtle.verify('HMAC', key, sig, new TextEncoder().encode(`${headerB64}.${payloadB64}`));
+  } catch { return false; }
+}
+
+if (!await verifyJWT(token, secret)) {
+  return Astro.redirect('/panel/login');
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 const db = Astro.locals.runtime?.env?.DB;
 let post: any = null;
 
