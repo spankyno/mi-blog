@@ -94,7 +94,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
                    url.pathname.startsWith('/panel/editar/');
 
   // Excluir rutas XML — no necesitan cabeceras de seguridad web
-  if (url.pathname === '/sitemap.xml' || url.pathname === '/rss.xml') {
+  if (url.pathname === '/sitemap.xml' || url.pathname === '/rss.xml' || url.pathname === '/api/contacto') {
     return next();
   }
 
