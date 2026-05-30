@@ -1,0 +1,153 @@
+---
+import Base from '../../layouts/Base.astro';
+
+const db = Astro.locals.runtime?.env?.DB;
+let pendientes: any[] = [];
+let revisados: any[] = [];
+
+if (db) {
+  const [rPendientes, rRevisados] = await Promise.all([
+    db.prepare(`SELECT * FROM submissions WHERE revisado = 0 ORDER BY fecha_hora DESC`).all(),
+    db.prepare(`SELECT * FROM submissions WHERE revisado = 1 ORDER BY fecha_hora DESC LIMIT 50`).all(),
+  ]);
+  pendientes = rPendientes.results ?? [];
+  revisados = rRevisados.results ?? [];
+}
+---
+<Base title="Mensajes — Panel">
+  <main>
+    <div class="topbar">
+      <h1>Mensajes de contacto</h1>
+      <a href="/panel" class="btn-back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><line x1="19" x2="5" y1="12" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+        Panel
+      </a>
+    </div>
+
+    <section>
+      <h2>Pendientes ({pendientes.length})</h2>
+      {pendientes.length === 0 && <p class="empty">No hay mensajes pendientes.</p>}
+      {pendientes.map((m: any) => (
+        <div class="msg-card pendiente" id={`m-${m.id}`}>
+          <div class="msg-meta">
+            <strong>{m.nombre}</strong>
+            <span class="msg-email">{m.email}</span>
+            <span class="msg-asunto">{m.asunto}</span>
+            <span class="msg-date td-utc" data-utc={m.fecha_hora}>{m.fecha_hora?.split('T')[0] ?? '—'}</span>
+            {m.direccion_ip && <span class="msg-ip">{m.direccion_ip}</span>}
+          </div>
+          <p class="msg-body">{m.comentario}</p>
+          <div class="msg-actions">
+            <button class="btn-revisar" onclick={`revisar(${m.id})`}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><polyline points="20 6 9 17 4 12"/></svg>
+              Marcar revisado
+            </button>
+            <button class="btn-delete" onclick={`borrar(${m.id})`}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+              Borrar
+            </button>
+          </div>
+        </div>
+      ))}
+    </section>
+
+    <section>
+      <h2>Revisados recientes</h2>
+      {revisados.length === 0 && <p class="empty">No hay mensajes revisados.</p>}
+      {revisados.map((m: any) => (
+        <div class="msg-card revisado" id={`m-${m.id}`}>
+          <div class="msg-meta">
+            <strong>{m.nombre}</strong>
+            <span class="msg-email">{m.email}</span>
+            <span class="msg-asunto">{m.asunto}</span>
+            <span class="msg-date td-utc" data-utc={m.fecha_hora}>{m.fecha_hora?.split('T')[0] ?? '—'}</span>
+          </div>
+          <p class="msg-body">{m.comentario}</p>
+          <div class="msg-actions">
+            <button class="btn-delete" onclick={`borrar(${m.id})`}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+              Borrar
+            </button>
+          </div>
+        </div>
+      ))}
+    </section>
+  </main>
+</Base>
+
+<script>
+  async function revisar(id: number) {
+    const res = await fetch('/api/panel/mensajes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, accion: 'revisar' }),
+    });
+    if (res.ok) document.getElementById(`m-${id}`)?.remove();
+    else alert('Error al marcar como revisado.');
+  }
+
+  async function borrar(id: number) {
+    if (!confirm('¿Borrar este mensaje? Esta acción no se puede deshacer.')) return;
+    const res = await fetch('/api/panel/mensajes', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    });
+    if (res.ok) document.getElementById(`m-${id}`)?.remove();
+    else alert('Error al borrar el mensaje.');
+  }
+
+  (window as any).revisar = revisar;
+  (window as any).borrar = borrar;
+
+  // Convertir fechas UTC a hora local
+  document.querySelectorAll('.td-utc').forEach(td => {
+    const utc = (td as HTMLElement).getAttribute('data-utc');
+    if (!utc) return;
+    const d = new Date(utc);
+    td.textContent = `${d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}, ${d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
+  });
+</script>
+
+<style>
+  main { max-width: 860px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; }
+  h1 { font-family: var(--font-display); font-size: 2rem; font-weight: 400; letter-spacing: -0.02em; }
+  h2 { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--color-muted); margin: 2rem 0 1rem; }
+  .btn-back {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    font-size: 0.85rem; color: var(--color-muted);
+    border: 1px solid var(--color-border); padding: 0.45rem 1rem;
+    border-radius: 4px; text-decoration: none; transition: color 0.2s, border-color 0.2s;
+  }
+  .btn-back:hover { color: var(--color-text); border-color: var(--color-text); }
+  .empty { color: var(--color-muted); font-size: 0.9rem; }
+
+  .msg-card { border: 1px solid var(--color-border); border-radius: 6px; padding: 1rem 1.25rem; margin-bottom: 0.75rem; }
+  .msg-card.pendiente { border-left: 3px solid #f59e0b; }
+  .msg-card.revisado { border-left: 3px solid #10b981; }
+
+  .msg-meta { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.5rem; font-size: 0.85rem; }
+  .msg-email { color: var(--color-muted); font-size: 0.8rem; }
+  .msg-asunto {
+    background: #e0e7ff; color: #3730a3;
+    font-size: 0.65rem; font-weight: 700; letter-spacing: 0.05em;
+    padding: 0.15rem 0.5rem; border-radius: 4px;
+  }
+  html[data-theme='dark'] .msg-asunto { background: #312e81; color: #c7d2fe; }
+  .msg-date { color: var(--color-muted); font-size: 0.8rem; margin-left: auto; }
+  .msg-ip { font-size: 0.75rem; color: var(--color-muted); font-family: monospace; }
+  .msg-body { font-size: 0.95rem; line-height: 1.6; margin-bottom: 0.75rem; white-space: pre-wrap; }
+
+  .msg-actions { display: flex; gap: 0.5rem; }
+  .btn-revisar, .btn-delete {
+    display: inline-flex; align-items: center; gap: 0.35rem;
+    font-size: 0.8rem; padding: 0.3rem 0.75rem; border-radius: 4px;
+    cursor: pointer; border: 1px solid var(--color-border);
+    background: transparent; font-family: inherit; transition: background 0.15s;
+  }
+  .btn-revisar { color: #065f46; border-color: #6ee7b7; }
+  .btn-revisar:hover { background: #d1fae5; }
+  .btn-delete { color: #dc2626; border-color: #fca5a5; }
+  .btn-delete:hover { background: #fee2e2; }
+</style>
