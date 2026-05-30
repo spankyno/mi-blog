@@ -1,0 +1,391 @@
+---
+import Base from '../layouts/Base.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+
+const TURNSTILE_SITE_KEY = '0x4AAAAAADZThpx_wT1cetnm';
+const db = Astro.locals.runtime?.env?.DB;
+let aportaciones: any[] = [];
+
+if (db) {
+  const result = await db.prepare(
+    `SELECT nombre, asunto, comentario, fecha_hora, revisado FROM submissions ORDER BY fecha_hora DESC LIMIT 20`
+  ).all();
+  aportaciones = result.results ?? [];
+}
+---
+<Base
+  title="Aitor's blog Contacto"
+  description="Este es un formulario de contacto oficial del blog. Puedes utilizar este espacio para dejar tus comentarios, sugerencias sobre los artículos o proponer nuevas colaboraciones."
+>
+  <Header />
+  <main id="main-content">
+
+    <!-- Hero -->
+    <section class="hero">
+      <h1>Aitor's blog <span class="accent">Contacto</span></h1>
+      <p class="hero-desc">Este es un formulario de contacto oficial del blog. Puedes utilizar este espacio para dejar tus comentarios, sugerencias sobre los artículos o proponer nuevas colaboraciones. Tu mensaje será visible en el historial público para fomentar la transparencia y el diálogo con toda la comunidad del blog.</p>
+    </section>
+
+    <!-- Contenido principal: perfil + formulario -->
+    <section class="content-grid">
+
+      <!-- Perfil -->
+      <aside class="profile">
+        <div class="profile-img-wrap">
+          <img src="/images/AitorSanchez.webp" alt="Aitor Sánchez Gutiérrez" class="profile-img" />
+        </div>
+        <h2 class="profile-name">Aitor</h2>
+        <div class="profile-divider"></div>
+        <div class="profile-info">
+          <div class="profile-field">
+            <span class="profile-label">E-MAIL</span>
+            <a href="mailto:blog.cottage627@passinbox.com" class="profile-value">blog.cottage627@passinbox.com</a>
+          </div>
+          <div class="profile-field">
+            <span class="profile-label">TWITTER / X</span>
+            <a href="https://x.com/Kalbo__" target="_blank" rel="noopener noreferrer" class="profile-value">@Kalbo__</a>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Formulario -->
+      <div class="form-card">
+        <h3 class="form-title">
+          <span class="form-title-bar"></span>
+          Nuevo Mensaje
+        </h3>
+
+        <div id="form-success" class="alert alert-success" style="display:none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><polyline points="20 6 9 17 4 12"/></svg>
+          ¡Mensaje enviado correctamente! Gracias por tu aportación.
+        </div>
+        <div id="form-error" class="alert alert-error" style="display:none"></div>
+
+        <div class="form-row">
+          <label class="field">
+            <span>TU NOMBRE</span>
+            <input type="text" id="nombre" placeholder="¿Quién escribe?" maxlength="255" autocomplete="name" />
+          </label>
+          <label class="field">
+            <span>CORREO DE CONTACTO</span>
+            <input type="email" id="email" placeholder="tu@email.com" maxlength="255" autocomplete="email" />
+          </label>
+        </div>
+
+        <label class="field">
+          <span>¿CUÁL ES EL MOTIVO?</span>
+          <div class="select-wrap">
+            <select id="asunto">
+              <option value="Comentario">💬 Dejar un saludo o comentario</option>
+              <option value="Opinión">💡 Compartir una opinión</option>
+              <option value="Propuesta de colaboración">🤝 Propuesta de colaboración</option>
+            </select>
+            <svg class="select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+        </label>
+
+        <label class="field">
+          <span>ESCRIBE TU COMENTARIO</span>
+          <textarea id="comentario" placeholder="Escribe aquí tu mensaje (máx. 250 caracteres)..." maxlength="250" rows="4"></textarea>
+          <span class="char-count"><span id="char-current">0</span> / 250 CARACTERES</span>
+        </label>
+
+        <!-- Turnstile -->
+        <div id="turnstile-container" class="turnstile-wrap">
+          <div class="cf-turnstile" data-sitekey={TURNSTILE_SITE_KEY} data-theme="auto" data-callback="onTurnstileSuccess"></div>
+        </div>
+
+        <button id="submit-btn" class="btn-submit" onclick="enviarMensaje()">
+          Publicar mensaje
+        </button>
+      </div>
+    </section>
+
+    <!-- Actividad reciente -->
+    <section class="actividad">
+      <div class="actividad-header">
+        <div>
+          <h2 class="actividad-title">Actividad reciente</h2>
+          <p class="actividad-subtitle">Últimas aportaciones y mensajes de la comunidad</p>
+        </div>
+        <span class="actividad-badge">{aportaciones.length} APORTACIONES</span>
+      </div>
+
+      {aportaciones.length === 0 && <p class="actividad-empty">Todavía no hay aportaciones. ¡Sé el primero!</p>}
+
+      {aportaciones.length > 0 && (
+        <div class="actividad-table-wrap">
+          <table class="actividad-table">
+            <thead>
+              <tr>
+                <th>REMITENTE</th>
+                <th>ASUNTO</th>
+                <th>COMENTARIO</th>
+                <th>FECHA</th>
+                <th>ESTADO</th>
+              </tr>
+            </thead>
+            <tbody>
+              {aportaciones.map((a: any) => (
+                <tr>
+                  <td class="td-nombre">{a.nombre}</td>
+                  <td><span class="badge-asunto">COMENTARIO</span></td>
+                  <td class="td-comentario">{a.comentario}</td>
+                  <td class="td-fecha td-utc" data-utc={a.fecha_hora}>{a.fecha_hora?.split('T')[0] ?? '—'}</td>
+                  <td>
+                    {a.revisado
+                      ? <span class="badge-revisado">● REVISADO</span>
+                      : <span class="badge-pendiente">● PENDIENTE</span>
+                    }
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+
+  </main>
+  <Footer />
+</Base>
+
+<script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+
+<script>
+  let turnstileToken = '';
+
+  (window as any).onTurnstileSuccess = (token: string) => {
+    turnstileToken = token;
+  };
+
+  const textarea = document.getElementById('comentario') as HTMLTextAreaElement;
+  const charCurrent = document.getElementById('char-current');
+  textarea?.addEventListener('input', () => {
+    if (charCurrent) charCurrent.textContent = String(textarea.value.length);
+  });
+
+  async function enviarMensaje() {
+    const nombre = (document.getElementById('nombre') as HTMLInputElement).value.trim();
+    const email = (document.getElementById('email') as HTMLInputElement).value.trim();
+    const asunto = (document.getElementById('asunto') as HTMLSelectElement).value;
+    const comentario = (document.getElementById('comentario') as HTMLTextAreaElement).value.trim();
+    const btn = document.getElementById('submit-btn') as HTMLButtonElement;
+    const successEl = document.getElementById('form-success') as HTMLDivElement;
+    const errorEl = document.getElementById('form-error') as HTMLDivElement;
+
+    successEl.style.display = 'none';
+    errorEl.style.display = 'none';
+
+    if (!nombre || !email || !comentario) {
+      errorEl.textContent = 'Por favor, rellena todos los campos.';
+      errorEl.style.display = 'flex';
+      return;
+    }
+    if (!turnstileToken) {
+      errorEl.textContent = 'Por favor, completa la verificación de seguridad.';
+      errorEl.style.display = 'flex';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Enviando...';
+
+    try {
+      const res = await fetch('/api/contacto', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre, email, asunto, comentario, token: turnstileToken }),
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        successEl.style.display = 'flex';
+        (document.getElementById('nombre') as HTMLInputElement).value = '';
+        (document.getElementById('email') as HTMLInputElement).value = '';
+        (document.getElementById('comentario') as HTMLTextAreaElement).value = '';
+        if (charCurrent) charCurrent.textContent = '0';
+        turnstileToken = '';
+        (window as any).turnstile?.reset();
+      } else {
+        errorEl.textContent = data.error ?? 'Error al enviar el mensaje.';
+        errorEl.style.display = 'flex';
+        (window as any).turnstile?.reset();
+        turnstileToken = '';
+      }
+    } catch {
+      errorEl.textContent = 'Error de conexión. Inténtalo de nuevo.';
+      errorEl.style.display = 'flex';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Publicar mensaje';
+    }
+  }
+  (window as any).enviarMensaje = enviarMensaje;
+
+  // Convertir fechas UTC a hora local
+  document.querySelectorAll('.td-utc').forEach(td => {
+    const utc = td.getAttribute('data-utc');
+    if (!utc) return;
+    const d = new Date(utc);
+    td.textContent = `${d.toLocaleDateString('es-ES', { day: 'numeric', month: 'numeric', year: '2-digit' })}, ${d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
+  });
+</script>
+
+<style>
+  main { max-width: 860px; margin: 0 auto; padding: 0 1.5rem 5rem; }
+
+  /* Hero */
+  .hero { text-align: center; padding: 3rem 0 2.5rem; }
+  .hero h1 {
+    font-family: var(--font-display);
+    font-size: clamp(2rem, 5vw, 2.8rem);
+    font-weight: 400;
+    letter-spacing: -0.02em;
+    margin-bottom: 1rem;
+  }
+  .accent { color: #6366f1; }
+  .hero-desc {
+    font-size: 0.9rem;
+    color: var(--color-muted);
+    max-width: 56ch;
+    margin: 0 auto;
+    line-height: 1.7;
+    font-style: italic;
+  }
+
+  /* Grid perfil + formulario */
+  .content-grid {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 2rem;
+    align-items: start;
+    margin-bottom: 3rem;
+  }
+
+  /* Perfil */
+  .profile {
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 1.5rem 1rem;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .profile-img-wrap {
+    width: 100px; height: 100px;
+    border-radius: 50%; overflow: hidden;
+    border: 3px solid var(--color-border);
+  }
+  .profile-img { width: 100%; height: 100%; object-fit: cover; }
+  .profile-name { font-family: var(--font-display); font-size: 1.3rem; font-weight: 400; }
+  .profile-divider { width: 40px; height: 3px; background: #6366f1; border-radius: 2px; }
+  .profile-info { width: 100%; display: flex; flex-direction: column; gap: 0.75rem; }
+  .profile-field { text-align: left; }
+  .profile-label { display: block; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.08em; color: var(--color-muted); margin-bottom: 0.2rem; }
+  .profile-value { font-size: 0.78rem; color: var(--color-text); word-break: break-all; text-decoration: none; }
+  .profile-value:hover { text-decoration: underline; }
+
+  /* Formulario */
+  .form-card {
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 1.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+  }
+  .form-title {
+    display: flex; align-items: center; gap: 0.75rem;
+    font-size: 1.1rem; font-weight: 600; color: var(--color-text);
+  }
+  .form-title-bar { width: 4px; height: 1.2em; background: #6366f1; border-radius: 2px; flex-shrink: 0; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+  .field { display: flex; flex-direction: column; gap: 0.3rem; }
+  .field span {
+    font-size: 0.65rem; font-weight: 700; letter-spacing: 0.08em;
+    color: var(--color-muted);
+  }
+  .field input, .field textarea {
+    font-family: var(--font-body); font-size: 0.9rem;
+    color: var(--color-text); background: var(--color-bg);
+    border: 1px solid var(--color-border); border-radius: 6px;
+    padding: 0.6rem 0.85rem; transition: border-color 0.2s; width: 100%;
+  }
+  .field input:focus, .field textarea:focus, .field select:focus {
+    outline: none; border-color: #6366f1;
+  }
+  .field textarea { resize: vertical; min-height: 100px; }
+  .char-count { font-size: 0.7rem; color: var(--color-muted); text-align: right; }
+  .select-wrap { position: relative; }
+  .select-wrap select {
+    font-family: var(--font-body); font-size: 0.9rem;
+    color: var(--color-text); background: var(--color-bg);
+    border: 1px solid var(--color-border); border-radius: 6px;
+    padding: 0.6rem 2.5rem 0.6rem 0.85rem;
+    width: 100%; appearance: none; cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  .select-icon { position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--color-muted); }
+  .turnstile-wrap { display: flex; justify-content: flex-start; }
+  .btn-submit {
+    width: 100%; background: var(--color-text); color: var(--color-bg);
+    border: none; padding: 0.85rem; border-radius: 8px;
+    font-family: var(--font-body); font-size: 1rem; font-weight: 600;
+    cursor: pointer; transition: opacity 0.2s;
+  }
+  .btn-submit:hover { opacity: 0.8; }
+  .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* Alertas */
+  .alert {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.75rem 1rem; border-radius: 6px; font-size: 0.9rem;
+  }
+  .alert-success { background: #d1fae5; color: #065f46; }
+  .alert-error { background: #fee2e2; color: #dc2626; }
+
+  /* Actividad reciente */
+  .actividad { border-top: 1px solid var(--color-border); padding-top: 2.5rem; }
+  .actividad-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 0.75rem; }
+  .actividad-title { font-family: var(--font-display); font-size: 1.5rem; font-weight: 400; letter-spacing: -0.02em; }
+  .actividad-subtitle { font-size: 0.85rem; color: var(--color-muted); margin-top: 0.2rem; }
+  .actividad-badge {
+    background: var(--color-text); color: var(--color-bg);
+    font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em;
+    padding: 0.35rem 0.85rem; border-radius: 99px; white-space: nowrap;
+  }
+  .actividad-empty { color: var(--color-muted); font-size: 0.9rem; }
+  .actividad-table-wrap { border: 1px solid var(--color-border); border-radius: 8px; overflow: hidden; }
+  .actividad-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  .actividad-table thead th {
+    text-align: left; padding: 0.65rem 1rem;
+    background: var(--color-bg); border-bottom: 1px solid var(--color-border);
+    font-size: 0.7rem; font-weight: 700; letter-spacing: 0.07em; color: var(--color-muted);
+  }
+  .actividad-table td { padding: 0.85rem 1rem; border-bottom: 1px solid var(--color-border); vertical-align: top; }
+  .actividad-table tr:last-child td { border-bottom: none; }
+  .actividad-table tr:hover td { background: var(--color-row-hover); }
+  .td-nombre { font-weight: 600; white-space: nowrap; }
+  .td-comentario { line-height: 1.55; }
+  .td-fecha { white-space: nowrap; color: var(--color-muted); font-size: 0.8rem; }
+  .badge-asunto {
+    background: #e0e7ff; color: #3730a3;
+    font-size: 0.65rem; font-weight: 700; letter-spacing: 0.06em;
+    padding: 0.2rem 0.5rem; border-radius: 4px; white-space: nowrap;
+  }
+  html[data-theme='dark'] .badge-asunto { background: #312e81; color: #c7d2fe; }
+  .badge-revisado { font-size: 0.75rem; font-weight: 600; color: #059669; white-space: nowrap; }
+  .badge-pendiente { font-size: 0.75rem; font-weight: 600; color: #d97706; white-space: nowrap; }
+
+  @media (max-width: 640px) {
+    .content-grid { grid-template-columns: 1fr; }
+    .form-row { grid-template-columns: 1fr; }
+    .profile { flex-direction: row; text-align: left; flex-wrap: wrap; }
+  }
+</style>
