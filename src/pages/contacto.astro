@@ -151,15 +151,13 @@ if (db) {
   <Footer />
 </Base>
 
+<script is:inline>
+  window.turnstileToken = '';
+  window.onTurnstileSuccess = function(token) { window.turnstileToken = token; };
+</script>
 <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 
 <script>
-  let turnstileToken = '';
-
-  (window as any).onTurnstileSuccess = (token: string) => {
-    turnstileToken = token;
-  };
-
   const textarea = document.getElementById('comentario') as HTMLTextAreaElement;
   const charCurrent = document.getElementById('char-current');
   textarea?.addEventListener('input', () => {
@@ -183,7 +181,7 @@ if (db) {
       errorEl.style.display = 'flex';
       return;
     }
-    if (!turnstileToken) {
+    if (!(window as any).turnstileToken) {
       errorEl.textContent = 'Por favor, completa la verificación de seguridad.';
       errorEl.style.display = 'flex';
       return;
@@ -196,7 +194,7 @@ if (db) {
       const res = await fetch('/api/contacto', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nombre, email, asunto, comentario, token: turnstileToken }),
+        body: JSON.stringify({ nombre, email, asunto, comentario, token: (window as any).turnstileToken }),
       });
       const data = await res.json();
 
@@ -206,13 +204,13 @@ if (db) {
         (document.getElementById('email') as HTMLInputElement).value = '';
         (document.getElementById('comentario') as HTMLTextAreaElement).value = '';
         if (charCurrent) charCurrent.textContent = '0';
-        turnstileToken = '';
+        (window as any).turnstileToken = '';
         (window as any).turnstile?.reset();
       } else {
         errorEl.textContent = data.error ?? 'Error al enviar el mensaje.';
         errorEl.style.display = 'flex';
         (window as any).turnstile?.reset();
-        turnstileToken = '';
+        (window as any).turnstileToken = '';
       }
     } catch {
       errorEl.textContent = 'Error de conexión. Inténtalo de nuevo.';
