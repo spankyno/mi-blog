@@ -160,10 +160,11 @@ if (Astro.request.method === 'POST') {
       if (slugManuallyEdited) return;
       slugInput.value = titleInput.value
         .toLowerCase()
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z0-9\s-]/g, '')
-        .trim()
-        .replace(/\s+/g, '-');
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')  // quita tildes y diacríticos
+        .replace(/[^a-z0-9\s-]/g, '')                       // elimina caracteres no permitidos
+        .replace(/\s+/g, '-')                               // espacios → guiones
+        .replace(/-+/g, '-')                                // guiones múltiples → uno solo
+        .replace(/^-+|-+$/g, '');                           // elimina guiones al inicio/fin
     });
 
     document.getElementById('post-form')?.addEventListener('submit', () => {
