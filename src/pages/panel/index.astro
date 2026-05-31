@@ -4,6 +4,7 @@ import Base from '../../layouts/Base.astro';
 const db = Astro.locals.runtime?.env?.DB;
 let posts = [];
 let pendientes = 0;
+let mensajesPendientes = 0;
 const visitasMap: Record<string, number> = {};
 
 const url = new URL(Astro.request.url);
@@ -19,13 +20,15 @@ const sortCol = allowedSort[sortParam] ?? 'pub_date';
 const sortDir = dirParam === 'asc' ? 'ASC' : 'DESC';
 
 if (db) {
-  const [rPosts, rPendientes, rVisitas] = await Promise.all([
+  const [rPosts, rPendientes, rVisitas, rMensajes] = await Promise.all([
     db.prepare(`SELECT slug, title, pub_date, draft FROM posts ORDER BY ${sortCol} ${sortDir}`).all(),
     db.prepare(`SELECT COUNT(*) as n FROM comments WHERE estado = 'pendiente'`).first(),
     db.prepare(`SELECT slug, COUNT(*) as n FROM page_views WHERE is_bot = 0 GROUP BY slug`).all(),
+    db.prepare(`SELECT COUNT(*) as n FROM submissions WHERE revisado = 0`).first(),
   ]);
   posts = rPosts.results ?? [];
   pendientes = (rPendientes as any)?.n ?? 0;
+  const mensajesPendientes = (rMensajes as any)?.n ?? 0;
   for (const v of (rVisitas.results ?? [])) {
     visitasMap[(v as any).slug] = (v as any).n;
   }
@@ -210,6 +213,7 @@ function arrow(col: string) {
   }
   .btn-blog:hover { color: var(--color-text); border-color: var(--color-text); }
   .btn-comentarios { display: inline-flex; align-items: center; gap: 0.4rem; }
+  .btn-mensajes { display: inline-flex; align-items: center; gap: 0.4rem; }
   .badge-pendientes {
     background: #dc2626; color: #fff; font-size: 0.7rem; font-weight: 700;
     padding: 0.1rem 0.45rem; border-radius: 99px; line-height: 1.4; min-width: 18px; text-align: center;
