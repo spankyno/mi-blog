@@ -1,42 +1,7 @@
 ---
 import Base from '../../../layouts/Base.astro';
-import Header from '../../../components/Header.astro';
-import { marked } from 'marked';
-import sanitizeHtml from 'sanitize-html';
 
 const { slug } = Astro.params;
-
-const JWT_COOKIE = 'panel_token';
-const cookie = Astro.request.headers.get('cookie') ?? '';
-const token = cookie.split(';').find(c => c.trim().startsWith(`${JWT_COOKIE}=`))?.split('=')[1]?.trim();
-const secret = Astro.locals.runtime?.env?.JWT_SECRET;
-
-if (!token || !secret) {
-  return Astro.redirect('/panel/login');
-}
-
-async function verifyJWT(t: string, s: string): Promise<boolean> {
-  try {
-    const [headerB64, payloadB64, signatureB64] = t.split('.');
-    if (!headerB64 || !payloadB64 || !signatureB64) return false;
-    const payload = JSON.parse(atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/')));
-    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) return false;
-    const key = await crypto.subtle.importKey(
-      'raw', new TextEncoder().encode(s),
-      { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']
-    );
-    const sig = Uint8Array.from(
-      atob(signatureB64.replace(/-/g, '+').replace(/_/g, '/')),
-      c => c.charCodeAt(0)
-    );
-    return await crypto.subtle.verify('HMAC', key, sig, new TextEncoder().encode(`${headerB64}.${payloadB64}`));
-  } catch { return false; }
-}
-
-if (!await verifyJWT(token, secret)) {
-  return Astro.redirect('/panel/login');
-}
-
 const db = Astro.locals.runtime?.env?.DB;
 let post: any = null;
 
@@ -46,136 +11,579 @@ if (db) {
 
 if (!post) return Astro.redirect('/panel');
 
-const contentHtml = sanitizeHtml(String(await marked(post.content ?? '')), {
-  allowedTags: sanitizeHtml.defaults.allowedTags.concat(['img', 'h1', 'h2', 'h3', 'br']),
-  allowedAttributes: {
-    ...sanitizeHtml.defaults.allowedAttributes,
-    'img': ['src', 'alt', 'class', 'style', 'width', 'height'],
-    'a': ['href', 'target', 'rel'],
-    'p': ['style'],
-    'div': ['style'],
-    'span': ['style'],
-    '*': ['class', 'style']
-  },
-  allowedStyles: {
-    '*': {
-      'width': [/^\d+(%|px|em|rem|vw)$/],
-      'max-width': [/^\d+(%|px|em|rem|vw)$/],
-      'min-width': [/^\d+(%|px|em|rem|vw)$/],
-      'height': [/^\d+(%|px|em|rem|vh)$/],
-      'display': [/^(block|inline|inline-block|flex|none)$/],
-      'margin': [/^[\d\s.]+(%|px|em|rem|auto).*$/],
-      'margin-top': [/^[\d.]+(px|em|rem|%)$|^auto$/],
-      'margin-bottom': [/^[\d.]+(px|em|rem|%)$|^auto$/],
-      'margin-left': [/^[\d.]+(px|em|rem|%)$|^auto$/],
-      'margin-right': [/^[\d.]+(px|em|rem|%)$|^auto$/],
-      'padding': [/^[\d\s.]+(px|em|rem|%).*$/],
-      'text-align': [/^(left|right|center|justify)$/],
-      'float': [/^(left|right|none)$/],
-      'border-radius': [/^[\d.]+(px|em|rem|%).*$/],
-      'background': [/^#[0-9a-fA-F]{3,8}$|^rgb|^rgba|^[a-z]+$/],
-      'background-color': [/^#[0-9a-fA-F]{3,8}$|^rgb|^rgba|^[a-z]+$/],
-      'color': [/^#[0-9a-fA-F]{3,8}$|^rgb|^rgba|^[a-z]+$/],
-      'font-size': [/^[\d.]+(px|em|rem|%)$/],
-      'font-weight': [/^(normal|bold|[1-9]00)$/],
-      'line-height': [/^[\d.]+(%|px|em|rem)?$/],
-      'opacity': [/^[01]?\.?\d*$/],
-      'border': [/^.+$/],
-      'border-left': [/^.+$/],
-    }
+// ── CSRF: generar token y almacenarlo en cookie de sesión corta ─────────────
+// El token se embebe en el form y se verifica en el POST.
+// Usamos crypto.randomUUID() nativo de Cloudflare Workers — sin dependencias.
+const csrfToken = crypto.randomUUID();
+// Emitir cookie httpOnly con el token — expira en 1 hora
+Astro.response.headers.append(
+  'Set-Cookie',
+  `csrf_token=${csrfToken}; HttpOnly; Secure; SameSite=Strict; Path=/panel; Max-Age=3600`
+);
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  // ── Verificar CSRF token ─────────────────────────────────────────────────
+  const submittedToken = (form.get('_csrf') as string) ?? '';
+  const cookieCsrf = (Astro.request.headers.get('cookie') ?? '')
+    .split(';')
+    .find(c => c.trim().startsWith('csrf_token='))
+    ?.split('=')[1]?.trim() ?? '';
+
+  if (!submittedToken || !cookieCsrf || submittedToken !== cookieCsrf) {
+    return new Response('Token CSRF inválido o expirado. Vuelve a cargar la página.', { status: 403 });
   }
-});
+  // ─────────────────────────────────────────────────────────────────────────
+
+  const title = (form.get('title') as string)?.trim();
+  const newSlug = (form.get('slug') as string)?.trim();
+  const description = (form.get('description') as string)?.trim();
+  const content = (form.get('content') as string)?.trim();
+  const pub_date = form.get('pub_date') as string;
+  const draft = form.get('draft') === 'on' ? 1 : 0;
+  const hero_image = (form.get('hero_image') as string)?.trim() || null;
+
+  // ── Validación server-side ────────────────────────────────────────────────
+  const slugRegex = /^[a-z0-9-]+$/;
+  const urlRegex = /^https?:\/\/.+/i;
+
+  if (!title || title.length > 200) {
+    return new Response('Título inválido o demasiado largo', { status: 400 });
+  }
+  if (!newSlug || !slugRegex.test(newSlug) || newSlug.length > 100) {
+    return new Response('Slug inválido (solo minúsculas, números y guiones)', { status: 400 });
+  }
+  if (!pub_date || isNaN(Date.parse(pub_date))) {
+    return new Response('Fecha de publicación inválida', { status: 400 });
+  }
+  if (hero_image && !urlRegex.test(hero_image)) {
+    return new Response('URL de imagen inválida', { status: 400 });
+  }
+  if (content && content.length > 200000) {
+    return new Response('Contenido demasiado largo', { status: 400 });
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
+  if (db && title && newSlug) {
+    await db.prepare(
+      `UPDATE posts SET slug=?, title=?, description=?, content=?, pub_date=?, draft=?, hero_image=? WHERE slug=?`
+    ).bind(newSlug, title, description, content, pub_date, draft, hero_image, slug).run();
+    return Astro.redirect('/panel');
+  }
+}
+
+const initialContent = post.content ?? '';
 ---
-<Base title={`Preview: ${post.title}`}>
-  <Header />
-  <div class="preview-bar">
-    <span class="preview-badge">Vista previa {post.draft ? '— Borrador' : '— Publicado'}</span>
-    <div class="preview-actions">
-      <a href={`/panel/editar/${post.slug}`} class="btn-edit">← Editar</a>
-      <a href={`/blog/${post.slug}`} target="_blank" class="btn-live">Ver en blog ↗</a>
-    </div>
-  </div>
+<Base title={`Editar: ${post.title} — Panel`}>
+  <link rel="stylesheet" href="https://uicdn.toast.com/editor/latest/toastui-editor.min.css" />
+
   <main>
-    <article>
-      <header>
-        <p class="date">{new Date(post.pub_date).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-        <h1>{post.title}</h1>
-        {post.description && <p class="desc">{post.description}</p>}
-      </header>
-      {post.hero_image && (
-        <img src={post.hero_image} alt={post.title} class="hero-img" />
-      )}
-      <div class="content" set:html={contentHtml} />
-    </article>
-    <a href="/panel" class="back">← Volver al panel</a>
+    <div class="topbar">
+      <a href="/panel" class="back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><line x1="19" x2="5" y1="12" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+        Volver
+      </a>
+      <h1>Editar post</h1>
+      <a href={`/blog/${post.slug}`} target="_blank" class="preview">
+        Ver en blog
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" x2="21" y1="14" y2="3"/></svg>
+      </a>
+    </div>
+
+    <form method="POST" id="post-form">
+      <input type="hidden" name="_csrf" value={csrfToken} />
+      <div class="row two">
+        <label>
+          Título
+          <input type="text" name="title" required value={post.title} />
+        </label>
+        <label>
+          Slug (URL)
+          <input type="text" name="slug" required value={post.slug} pattern="[-a-z0-9]+" />
+        </label>
+      </div>
+
+      <label>
+        Descripción
+        <input type="text" name="description" value={post.description ?? ''} />
+      </label>
+
+      <div class="image-wrap">
+        <label>
+          Imagen de cabecera <span class="hint">(URL externa, ej. de Imgur o GitHub)</span>
+          <input type="text" name="hero_image" id="hero-image-input" value={post.hero_image ?? ''} placeholder="https://i.imgur.com/ejemplo.jpg" />
+        </label>
+        <div id="image-preview" class={`image-preview${post.hero_image ? '' : ' hidden'}`}>
+          <img id="preview-img" src={post.hero_image ?? ''} alt="Preview" />
+          <button type="button" id="remove-image" class="btn-remove">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg>
+            Quitar imagen
+          </button>
+        </div>
+      </div>
+
+      <div class="editor-wrap">
+        <span class="editor-label">Contenido</span>
+        <div id="editor"></div>
+        <input type="hidden" name="content" id="content-input" />
+      </div>
+
+      <div class="row two">
+        <label>
+          Fecha de publicación
+          <input type="date" name="pub_date" required value={post.pub_date?.split('T')[0] ?? ''} />
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" name="draft" checked={post.draft === 1 || post.draft === true} />
+          Borrador
+        </label>
+      </div>
+
+      <div class="form-footer">
+        <button type="submit" class="btn-save">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Guardar cambios
+        </button>
+      </div>
+    </form>
   </main>
 </Base>
 
+<script define:vars={{ initialContent }}>
+  const script = document.createElement('script');
+  script.src = 'https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js';
+  script.onload = () => {
+    const { Editor } = window.toastui;
+
+    const editor = new Editor({
+      el: document.getElementById('editor'),
+      height: '480px',
+      initialEditType: 'markdown',
+      previewStyle: 'vertical',
+      initialValue: initialContent,
+    });
+
+    document.getElementById('post-form')?.addEventListener('submit', () => {
+      document.getElementById('content-input').value = editor.getMarkdown();
+    });
+
+    // Inyectar estilos modo oscuro DESPUÉS de que Toast UI inyecte los suyos
+    function applyDarkEditorStyles() {
+      const id = 'toast-dark-override';
+      if (document.getElementById(id)) return;
+      const style = document.createElement('style');
+      style.id = id;
+      style.textContent = `
+        /* ── Área de escritura (izquierda) ── */
+        html[data-theme="dark"] .ProseMirror { color: #e5e5e5 !important; background: #1e1e1e !important; }
+        html[data-theme="dark"] .toastui-editor-main-container { color: #e5e5e5 !important; background: #1e1e1e !important; }
+        html[data-theme="dark"] .toastui-editor-main-container * { color: #e5e5e5 !important; }
+        html[data-theme="dark"] .ProseMirror div { color: #e5e5e5 !important; }
+        html[data-theme="dark"] .toastui-editor-md-delimiter { color: #6b7280 !important; }
+        html[data-theme="dark"] .toastui-editor-md-strong { color: #ffffff !important; }
+        html[data-theme="dark"] .toastui-editor-md-heading { color: #ffffff !important; }
+        html[data-theme="dark"] .toastui-editor-md-link { color: #7dd3fc !important; }
+        /* ── Panel de preview (derecha) ── */
+        html[data-theme="dark"] .toastui-editor-preview { background-color: #181818 !important; }
+        html[data-theme="dark"] .toastui-editor-preview * { color: #e5e5e5 !important; }
+        html[data-theme="dark"] .toastui-editor-preview p,
+        html[data-theme="dark"] .toastui-editor-preview li,
+        html[data-theme="dark"] .toastui-editor-preview h1,
+        html[data-theme="dark"] .toastui-editor-preview h2,
+        html[data-theme="dark"] .toastui-editor-preview h3 { color: #e5e5e5 !important; }
+        html[data-theme="dark"] .toastui-editor-preview a { color: #7dd3fc !important; }
+        html[data-theme="dark"] .toastui-editor-preview pre { background-color: #2a2a2a !important; border: 1px solid #3f3f46 !important; }
+        html[data-theme="dark"] .toastui-editor-preview pre * { color: #e2e8f0 !important; }
+        html[data-theme="dark"] .toastui-editor-preview code { background-color: #2a2a2a !important; color: #e2e8f0 !important; border: 1px solid #3f3f46 !important; }
+        html[data-theme="dark"] .toastui-editor-preview blockquote { background-color: rgba(255,255,255,0.04) !important; border-left-color: #3f3f46 !important; }
+        html[data-theme="dark"] .toastui-editor-preview blockquote * { color: #a1a1aa !important; }
+        html[data-theme="dark"] .toastui-editor-preview table th { background-color: #2a2a2a !important; color: #e5e5e5 !important; }
+        html[data-theme="dark"] .toastui-editor-preview table td { color: #e5e5e5 !important; border-color: #3f3f46 !important; }
+        html[data-theme="dark"] .toastui-editor-preview table tr:nth-child(even) { background-color: #1e1e1e !important; }
+        html[data-theme="dark"] .toastui-editor-preview hr { border-color: #3f3f46 !important; }
+      `;
+      document.head.appendChild(style);
+    }
+    applyDarkEditorStyles();
+
+    // Re-aplicar si cambia el tema mientras el editor está abierto
+    const observer = new MutationObserver(() => {
+      const existing = document.getElementById('toast-dark-override');
+      if (existing) existing.remove();
+      applyDarkEditorStyles();
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+    const heroInput = document.getElementById('hero-image-input');
+    const preview = document.getElementById('image-preview');
+    const previewImg = document.getElementById('preview-img');
+    const removeBtn = document.getElementById('remove-image');
+
+    function updatePreview(url) {
+      if (url) {
+        previewImg.src = url;
+        preview.classList.remove('hidden');
+      } else {
+        preview.classList.add('hidden');
+        previewImg.src = '';
+      }
+    }
+
+    heroInput.addEventListener('input', () => updatePreview(heroInput.value.trim()));
+    removeBtn.addEventListener('click', () => { heroInput.value = ''; updatePreview(''); });
+    previewImg.addEventListener('error', () => preview.classList.add('hidden'));
+  };
+  document.head.appendChild(script);
+</script>
+
 <style>
-  /* ── Preview bar ── */
-  .preview-bar {
-    background: var(--preview-bar-bg);
-    border-bottom: 1px solid var(--preview-bar-border);
-    padding: 0.6rem 1.5rem;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    font-size: 0.85rem;
-    position: sticky;
-    top: 0;
-    z-index: 50;
+  main { max-width: 900px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+  .topbar { display: flex; align-items: center; gap: 1.5rem; margin-bottom: 2rem; }
+  .back {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    font-size: 0.875rem; color: var(--color-muted); transition: color 0.2s; text-decoration: none;
   }
-  :root {
-    --preview-bar-bg: #fef9c3;
-    --preview-bar-border: #fde047;
-    --preview-bar-text: #854d0e;
-    --preview-bar-hover: #fde047;
-  }
-  html[data-theme='dark'] {
-    --preview-bar-bg: #2a2200;
-    --preview-bar-border: #4a3800;
-    --preview-bar-text: #fbbf24;
-    --preview-bar-hover: #4a3800;
-  }
-  .preview-badge { color: var(--preview-bar-text); font-weight: 500; }
-  .preview-actions { display: flex; gap: 0.75rem; }
-  .btn-edit, .btn-live {
-    font-size: 0.8rem;
-    padding: 0.3rem 0.75rem;
-    border-radius: 4px;
-    border: 1px solid var(--preview-bar-border);
-    color: var(--preview-bar-text);
-    transition: background 0.15s;
-  }
-  .btn-edit:hover, .btn-live:hover { background: var(--preview-bar-hover); }
-
-  /* ── Layout ── */
-  main {
-    max-width: var(--max-width);
-    margin: 0 auto;
-    padding: 0 1.5rem;
-  }
-  article { padding: 3rem 0 4rem; }
-  header { margin-bottom: 2rem; border-bottom: 1px solid var(--color-border); padding-bottom: 2rem; }
-  .date { font-size: 0.875rem; color: var(--color-muted); margin-bottom: 1rem; }
-  h1 {
-    font-family: var(--font-display);
-    font-size: clamp(1.75rem, 4vw, 2.5rem);
-    font-weight: 400;
-    letter-spacing: -0.02em;
-    line-height: 1.2;
-    margin-bottom: 1rem;
-  }
-  .desc { color: var(--color-muted); font-size: 1.05rem; }
-  .hero-img {
-    width: 100%;
-    aspect-ratio: 1200 / 480;
-    object-fit: cover;
-    margin-bottom: 2rem;
-    border-radius: 4px;
-    background: #0d1b2e;
-  }
-
-  .back { font-size: 0.875rem; color: var(--color-muted); transition: color 0.2s; display: inline-block; margin-bottom: 2rem; }
   .back:hover { color: var(--color-text); }
+  h1 { font-family: var(--font-display); font-size: 2rem; font-weight: 400; letter-spacing: -0.02em; flex: 1; }
+  .preview {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    font-size: 0.875rem; color: var(--color-muted); transition: color 0.2s; text-decoration: none;
+  }
+  .preview:hover { color: var(--color-text); }
+  form { display: flex; flex-direction: column; gap: 1.5rem; }
+  label { display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.875rem; font-weight: 500; color: var(--color-muted); }
+  input[type="text"], input[type="date"] {
+    font-family: inherit; font-size: 1rem; font-weight: 300; color: var(--color-text);
+    background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 6px;
+    padding: 0.65rem 0.9rem; transition: border-color 0.2s; width: 100%;
+  }
+  input:focus { outline: none; border-color: var(--color-text); }
+  .image-wrap { display: flex; flex-direction: column; gap: 0.75rem; }
+  .image-preview { position: relative; display: inline-block; width: 100%; }
+  .image-preview img { width: 100%; max-height: 240px; object-fit: cover; border-radius: 6px; border: 1px solid var(--color-border); }
+  .image-preview.hidden { display: none; }
+  .btn-remove {
+    display: inline-flex; align-items: center; gap: 0.3rem;
+    position: absolute; top: 0.5rem; right: 0.5rem;
+    background: rgba(0,0,0,0.6); color: white; border: none;
+    border-radius: 4px; padding: 0.25rem 0.6rem; font-size: 0.8rem;
+    cursor: pointer; font-family: inherit;
+  }
+  .btn-remove:hover { background: rgba(0,0,0,0.85); }
+  .editor-wrap { display: flex; flex-direction: column; gap: 0.4rem; }
+  .editor-label { font-size: 0.875rem; font-weight: 500; color: var(--color-muted); }
+  #editor { border: 1px solid var(--color-border); border-radius: 6px; overflow: hidden; }
+  .row.two { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .checkbox-label { flex-direction: row; align-items: center; gap: 0.6rem; padding-top: 1.6rem; font-size: 0.95rem; color: var(--color-text); }
+  .checkbox-label input { width: auto; }
+  .form-footer { display: flex; justify-content: flex-end; padding-top: 0.5rem; }
+  .btn-save {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    background: var(--color-text); color: var(--color-bg); border: none;
+    padding: 0.65rem 1.75rem; font-size: 0.95rem; font-family: inherit;
+    border-radius: 6px; cursor: pointer; transition: opacity 0.2s;
+  }
+  .btn-save:hover { opacity: 0.75; }
+  .hint { font-weight: 300; font-size: 0.8rem; }
+
+  /* ── Modo oscuro: inputs ── */
+  html[data-theme='dark'] input[type="text"],
+  html[data-theme='dark'] input[type="date"] {
+    background: #1e1e1e;
+    color: var(--color-text);
+    border-color: var(--color-border);
+  }
+  html[data-theme='dark'] input[type="text"]::placeholder {
+    color: var(--color-muted);
+  }
+
+  /* ── Toast UI Editor en modo oscuro ── */
+
+  /* Contenedor principal y toolbar */
+  html[data-theme='dark'] .toastui-editor-defaultUI,
+  html[data-theme='dark'] .toastui-editor-toolbar,
+  html[data-theme='dark'] .toastui-editor-toolbar-group,
+  html[data-theme='dark'] .toastui-editor-main {
+    background: #1e1e1e !important;
+    border-color: var(--color-border) !important;
+  }
+
+  /* Botones de la toolbar */
+  html[data-theme='dark'] .toastui-editor-toolbar-icons {
+    background: #1e1e1e !important;
+    border-color: var(--color-border) !important;
+    color: var(--color-text) !important;
+  }
+  html[data-theme='dark'] .toastui-editor-toolbar-icons:hover,
+  html[data-theme='dark'] .toastui-editor-toolbar-icons.active {
+    background: #2a2a2a !important;
+  }
+
+  /* Área de escritura ProseMirror */
+  html[data-theme='dark'] .ProseMirror,
+  html[data-theme='dark'] .toastui-editor-contents,
+  html[data-theme='dark'] .toastui-editor-md-container,
+  html[data-theme='dark'] .toastui-editor-ww-container {
+    background: #1e1e1e !important;
+    color: #e5e5e5 !important;
+    caret-color: #e5e5e5 !important;
+  }
+
+  /* Texto dentro del editor */
+  html[data-theme='dark'] .ProseMirror p,
+  html[data-theme='dark'] .ProseMirror h1,
+  html[data-theme='dark'] .ProseMirror h2,
+  html[data-theme='dark'] .ProseMirror h3,
+  html[data-theme='dark'] .ProseMirror li,
+  html[data-theme='dark'] .ProseMirror blockquote,
+  html[data-theme='dark'] .toastui-editor-contents p,
+  html[data-theme='dark'] .toastui-editor-contents h1,
+  html[data-theme='dark'] .toastui-editor-contents h2,
+  html[data-theme='dark'] .toastui-editor-contents h3,
+  html[data-theme='dark'] .toastui-editor-contents li {
+    color: #e5e5e5 !important;
+  }
+
+  /* Código inline y bloques de código */
+  html[data-theme='dark'] .ProseMirror code,
+  html[data-theme='dark'] .ProseMirror pre,
+  html[data-theme='dark'] .toastui-editor-contents code,
+  html[data-theme='dark'] .toastui-editor-contents pre {
+    background: #2a2a2a !important;
+    color: #e2e8f0 !important;
+    border-color: var(--color-border) !important;
+  }
+
+  /* Links */
+  html[data-theme='dark'] .ProseMirror a,
+  html[data-theme='dark'] .toastui-editor-contents a {
+    color: #7dd3fc !important;
+  }
+
+  /* Separador entre editor y preview */
+  html[data-theme='dark'] .toastui-editor-md-splitter {
+    background: var(--color-border) !important;
+  }
+
+  /* Tabs Markdown / WYSIWYG */
+  html[data-theme='dark'] .toastui-editor-mode-switch {
+    background: #2a2a2a !important;
+    border-color: var(--color-border) !important;
+  }
+  html[data-theme='dark'] .toastui-editor-mode-switch .tab-item {
+    color: var(--color-muted) !important;
+  }
+  html[data-theme='dark'] .toastui-editor-mode-switch .tab-item.active {
+    color: var(--color-text) !important;
+    background: #1e1e1e !important;
+  }
+
+  /* Selección de texto */
+  html[data-theme='dark'] .ProseMirror ::selection {
+    background: #3a3a5c !important;
+    color: #e5e5e5 !important;
+  }
+
+  /* Placeholder */
+  html[data-theme='dark'] .ProseMirror .placeholder {
+    color: var(--color-muted) !important;
+  }
+
+  /* ── Toast UI: selectores exactos del modo Markdown ── */
+
+  /* Contenedor modo MD */
+  html[data-theme='dark'] .toastui-editor-md-container,
+  html[data-theme='dark'] .toastui-editor-md-vertical-style,
+  html[data-theme='dark'] .toastui-editor-md-mode,
+  html[data-theme='dark'] .toastui-editor-main-container,
+  html[data-theme='dark'] .toastui-editor-main {
+    background: #1e1e1e !important;
+  }
+
+  /* Texto plano dentro del ProseMirror */
+  html[data-theme='dark'] .ProseMirror {
+    background: #1e1e1e !important;
+    color: #e5e5e5 !important;
+    caret-color: #e5e5e5 !important;
+  }
+
+  /* Delimitadores Markdown (**,##,etc) — gris suave para no distraer */
+  html[data-theme='dark'] .toastui-editor-md-delimiter,
+  html[data-theme='dark'] .toastui-editor-md-code,
+  html[data-theme='dark'] .toastui-editor-md-link,
+  html[data-theme='dark'] .toastui-editor-md-url {
+    color: #6b7280 !important;
+  }
+
+  /* Texto con formato: negrita, cursiva, headings */
+  html[data-theme='dark'] .toastui-editor-md-strong,
+  html[data-theme='dark'] .toastui-editor-md-emph {
+    color: #f0f0f0 !important;
+  }
+  html[data-theme='dark'] .toastui-editor-md-heading,
+  html[data-theme='dark'] .toastui-editor-md-heading1,
+  html[data-theme='dark'] .toastui-editor-md-heading2,
+  html[data-theme='dark'] .toastui-editor-md-heading3 {
+    color: #ffffff !important;
+  }
+
+  /* Links */
+  html[data-theme='dark'] .toastui-editor-md-link {
+    color: #7dd3fc !important;
+  }
+
+  /* Código inline */
+  html[data-theme='dark'] .toastui-editor-md-code-block,
+  html[data-theme='dark'] .toastui-editor-md-meta {
+    color: #e2e8f0 !important;
+    background: #2a2a2a !important;
+  }
+
+  /* Toolbar */
+  html[data-theme='dark'] .toastui-editor-toolbar {
+    background: #2a2a2a !important;
+    border-bottom: 1px solid var(--color-border) !important;
+  }
+  html[data-theme='dark'] .toastui-editor-toolbar-icons {
+    color: #a1a1aa !important;
+    border-color: transparent !important;
+  }
+  html[data-theme='dark'] .toastui-editor-toolbar-icons:hover {
+    background: #3a3a3a !important;
+    color: #e5e5e5 !important;
+  }
+  html[data-theme='dark'] .toastui-editor-toolbar-divider {
+    background: var(--color-border) !important;
+  }
+
+  /* Tabs Markdown / WYSIWYG */
+  html[data-theme='dark'] .toastui-editor-mode-switch {
+    background: #2a2a2a !important;
+    border-top: 1px solid var(--color-border) !important;
+  }
+  html[data-theme='dark'] .toastui-editor-mode-switch .tab-item {
+    color: #6b7280 !important;
+    border-color: transparent !important;
+  }
+  html[data-theme='dark'] .toastui-editor-mode-switch .tab-item.active {
+    color: #e5e5e5 !important;
+    background: #1e1e1e !important;
+    border-color: var(--color-border) !important;
+  }
+
+  /* Separador vertical entre MD y preview */
+  html[data-theme='dark'] .toastui-editor-md-splitter {
+    background: var(--color-border) !important;
+  }
+
+  /* Scrollbar dentro del editor */
+  html[data-theme='dark'] .toastui-editor-main ::-webkit-scrollbar-track {
+    background: #1e1e1e !important;
+  }
+  html[data-theme='dark'] .toastui-editor-main ::-webkit-scrollbar-thumb {
+    background: #3f3f46 !important;
+  }
+
+  /* ── Toast UI: override estilos inyectados por el bundle JS ──
+     El editor inyecta color:#222 y color:rgb(34,34,34) via <style> interno.
+     Necesitamos especificidad máxima para ganarles. ── */
+
+  html[data-theme='dark'] #editor .toastui-editor-defaultUI,
+  html[data-theme='dark'] #editor .toastui-editor-main-container,
+  html[data-theme='dark'] #editor .toastui-editor-md-container,
+  html[data-theme='dark'] #editor .toastui-editor-md-mode,
+  html[data-theme='dark'] #editor .toastui-editor-main {
+    background-color: #1e1e1e !important;
+    color: #e5e5e5 !important;
+    border-color: var(--color-border) !important;
+  }
+
+  /* ProseMirror: sobreescribe color:rgb(34,34,34) inyectado por JS */
+  html[data-theme='dark'] #editor .ProseMirror {
+    background-color: #1e1e1e !important;
+    color: #e5e5e5 !important;
+    caret-color: #e5e5e5 !important;
+  }
+
+  /* Todo el texto dentro del editor */
+  html[data-theme='dark'] #editor .ProseMirror * {
+    color: #e5e5e5 !important;
+  }
+
+  /* Delimitadores Markdown (**, ##, etc) — más tenues */
+  html[data-theme='dark'] #editor .toastui-editor-md-delimiter,
+  html[data-theme='dark'] #editor .toastui-editor-md-meta,
+  html[data-theme='dark'] #editor .toastui-editor-md-url {
+    color: #6b7280 !important;
+  }
+
+  /* Negrita y cursiva — más brillante */
+  html[data-theme='dark'] #editor .toastui-editor-md-strong,
+  html[data-theme='dark'] #editor .toastui-editor-md-emph {
+    color: #ffffff !important;
+  }
+
+  /* Headings */
+  html[data-theme='dark'] #editor .toastui-editor-md-heading {
+    color: #ffffff !important;
+  }
+
+  /* Links */
+  html[data-theme='dark'] #editor .toastui-editor-md-link {
+    color: #7dd3fc !important;
+  }
+
+  /* Toolbar */
+  html[data-theme='dark'] #editor .toastui-editor-toolbar {
+    background-color: #2a2a2a !important;
+    border-bottom: 1px solid var(--color-border) !important;
+  }
+  html[data-theme='dark'] #editor .toastui-editor-toolbar-icons {
+    color: #a1a1aa !important;
+    background-color: transparent !important;
+    border-color: transparent !important;
+  }
+  html[data-theme='dark'] #editor .toastui-editor-toolbar-icons:hover {
+    background-color: #3a3a3a !important;
+    color: #e5e5e5 !important;
+  }
+  html[data-theme='dark'] #editor .toastui-editor-toolbar-divider {
+    background-color: var(--color-border) !important;
+  }
+
+  /* Separador vertical MD | Preview */
+  html[data-theme='dark'] #editor .toastui-editor-md-splitter {
+    background-color: var(--color-border) !important;
+  }
+
+  /* Panel preview (lado derecho) */
+  html[data-theme='dark'] #editor .toastui-editor-preview,
+  html[data-theme='dark'] #editor .toastui-editor-ww-container {
+    background-color: #181818 !important;
+    color: #e5e5e5 !important;
+  }
+  html[data-theme='dark'] #editor .toastui-editor-preview * {
+    color: #e5e5e5 !important;
+  }
+  html[data-theme='dark'] #editor .toastui-editor-preview a {
+    color: #7dd3fc !important;
+  }
+  html[data-theme='dark'] #editor .toastui-editor-preview code,
+  html[data-theme='dark'] #editor .toastui-editor-preview pre {
+    background-color: #2a2a2a !important;
+    color: #e2e8f0 !important;
+  }
+
+  /* Tabs Markdown / WYSIWYG */
+  html[data-theme='dark'] #editor .toastui-editor-mode-switch {
+    background-color: #2a2a2a !important;
+    border-top: 1px solid var(--color-border) !important;
+  }
+  html[data-theme='dark'] #editor .toastui-editor-mode-switch .tab-item {
+    color: #6b7280 !important;
+  }
+  html[data-theme='dark'] #editor .toastui-editor-mode-switch .tab-item.active {
+    color: #e5e5e5 !important;
+    background-color: #1e1e1e !important;
+  }
 </style>
