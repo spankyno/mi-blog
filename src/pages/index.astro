@@ -116,6 +116,16 @@ if (db) {
     color: #fff;
     border-color: #6366f1;
   }
+  html[data-theme='dark'] .see-all {
+    background: rgba(99, 102, 241, 0.12);
+    border-color: rgba(99, 102, 241, 0.35);
+    color: #a5b4fc;
+  }
+  html[data-theme='dark'] .see-all:hover {
+    background: #6366f1;
+    color: #fff;
+    border-color: #6366f1;
+  }
 
   /* Grid */
   .grid {
@@ -142,6 +152,15 @@ if (db) {
     transform: translateY(-4px);
     box-shadow: 0 12px 32px rgba(99,102,241,0.12), 0 2px 8px rgba(0,0,0,0.06);
     border-color: #c7c7f5;
+  }
+  html[data-theme='dark'] .card {
+    background: #1a1a1a;
+    border-color: rgba(255,255,255,0.08);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+  html[data-theme='dark'] .card:hover {
+    border-color: rgba(99,102,241,0.5);
+    box-shadow: 0 12px 32px rgba(99,102,241,0.15), 0 2px 8px rgba(0,0,0,0.4);
   }
 
   @keyframes fadeUp {
@@ -185,6 +204,10 @@ if (db) {
     color: #9999cc;
     font-style: italic;
   }
+  html[data-theme='dark'] .card-placeholder {
+    background: linear-gradient(135deg, #1e1e2e 0%, #16162a 100%);
+  }
+  html[data-theme='dark'] .card-placeholder span { color: #4a4a7a; }
 
   /* Body */
   .card-body {
@@ -201,6 +224,7 @@ if (db) {
     letter-spacing: 0.07em;
     color: #9090aa;
   }
+  html[data-theme='dark'] .card-date { color: #6b6b80; }
   .card-title {
     font-family: var(--font-body);
     font-size: 0.95rem;
@@ -212,6 +236,7 @@ if (db) {
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
+  html[data-theme='dark'] .card-title { color: #e5e5e5; }
   .card-desc {
     font-size: 0.8rem;
     color: #7070888;
