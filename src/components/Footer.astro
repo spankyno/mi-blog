@@ -178,6 +178,14 @@ if (db) {
     color: var(--color-text);
     white-space: nowrap;
   }
+  html[data-theme='dark'] .badge {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+  html[data-theme='dark'] .badge svg path[fill="#181616"],
+  html[data-theme='dark'] .badge svg path[fill="#000"] {
+    fill: #e5e5e5;
+  }
 
   .footer-bottom { padding-top: 1rem; }
   .footer-copy { font-size: 0.78rem; color: var(--color-muted); font-style: normal; }
