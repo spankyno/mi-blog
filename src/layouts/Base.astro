@@ -283,7 +283,14 @@ const breadcrumbLd = ogType === 'article' ? {
         line-height: 1.85;
         letter-spacing: -0.01em;
       }
-      .content p { margin-bottom: 1.75rem; max-width: 68ch; }
+      .content p {
+        margin-bottom: 1.75rem;
+        max-width: 68ch;
+        text-align: justify;
+        hyphens: auto;
+        -webkit-hyphens: auto;
+        hyphenate-limit-chars: 6 3 3;
+      }
       .content h2 {
         font-family: var(--font-display);
         font-size: clamp(1.35rem, 3vw, 1.6rem);
@@ -347,13 +354,7 @@ const breadcrumbLd = ogType === 'article' ? {
       @media (max-width: 480px) {
         .content { font-size: 1rem; letter-spacing: 0; }
         .content p, .content ul, .content ol { max-width: 100%; }
-      }
-      @media (min-width: 640px) {
-        .content p, .content li {
-          text-align: justify;
-          hyphens: auto;
-          -webkit-hyphens: auto;
-        }
+        .content p { text-align: left; hyphens: none; -webkit-hyphens: none; }
       }
     </style>
   </head>
