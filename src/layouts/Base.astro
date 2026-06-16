@@ -348,6 +348,13 @@ const breadcrumbLd = ogType === 'article' ? {
         .content { font-size: 1rem; letter-spacing: 0; }
         .content p, .content ul, .content ol { max-width: 100%; }
       }
+      @media (min-width: 640px) {
+        .content p, .content li {
+          text-align: justify;
+          hyphens: auto;
+          -webkit-hyphens: auto;
+        }
+      }
     </style>
   </head>
   <body>
