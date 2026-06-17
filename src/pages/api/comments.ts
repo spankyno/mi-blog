@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { sendTelegramComentario } from '../../lib/telegram';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   const db = locals.runtime?.env?.DB;
@@ -41,6 +42,19 @@ export const POST: APIRoute = async ({ request, locals }) => {
     `INSERT INTO comments (slug, autor, email, contenido, created_at, estado, ip)
      VALUES (?, ?, ?, ?, ?, 'pendiente', ?)`
   ).bind(slug, autor.trim(), email?.trim() ?? null, contenido.trim(), created_at, ip).run();
+
+  // Aviso de Telegram (no bloqueante)
+  const env = (locals as any).runtime?.env;
+  sendTelegramComentario(env, {
+    slug,
+    autor: autor.trim(),
+    email: email?.trim() ?? null,
+    contenido: contenido.trim(),
+    ip,
+    city: null,
+    country: null,
+    createdAt: created_at,
+  }).catch(() => {});
 
   return new Response(JSON.stringify({ ok: true }), {
     status: 201,

@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { sendTelegramContacto } from '../../lib/telegram';
 
 const TURNSTILE_VERIFY = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 
@@ -56,6 +57,20 @@ export const POST: APIRoute = async ({ request, locals }) => {
     `INSERT INTO submissions (fecha_hora, direccion_ip, nombre, email, asunto, comentario, revisado)
      VALUES (datetime('now'), ?, ?, ?, ?, ?, 0)`
   ).bind(direccion_ip, nombre.trim(), email.trim().toLowerCase(), asunto, comentario.trim()).run();
+
+  // Aviso de Telegram (no bloqueante)
+  const env = (locals as any).runtime?.env;
+  const cf = (locals as any).runtime?.cf as any;
+  sendTelegramContacto(env, {
+    nombre: nombre.trim(),
+    email: email.trim().toLowerCase(),
+    asunto,
+    comentario: comentario.trim(),
+    ip: direccion_ip,
+    city: cf?.city ?? null,
+    country: cf?.country ?? null,
+    fechaHora: new Date().toISOString(),
+  }).catch(() => {});
 
   return new Response(JSON.stringify({ ok: true }), { status: 201, headers: { 'Content-Type': 'application/json' } });
 };
