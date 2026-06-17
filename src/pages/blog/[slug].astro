@@ -5,6 +5,7 @@ import Footer from '../../components/Footer.astro';
 import { marked } from 'marked';
 import sanitizeHtml from 'sanitize-html';
 import { cloudinaryOptimize, cloudinaryOgImage } from '../../lib/images';
+import { sendTelegramVisita } from '../../lib/telegram';
 
 const { slug } = Astro.params;
 const db = Astro.locals.runtime?.env?.DB;
@@ -105,6 +106,24 @@ if (db && !isPrefetch) {
       Astro.locals.runtime.ctx.waitUntil(insertPromise);
     } else {
       await insertPromise;
+    }
+
+    // Aviso de Telegram solo para visitas humanas
+    if (!isBot) {
+      const env = Astro.locals.runtime?.env;
+      const telegramPromise = sendTelegramVisita(env, {
+        slug: slug!,
+        ip,
+        city,
+        country,
+        userAgent,
+        viewedAt,
+      });
+      if (Astro.locals.runtime?.ctx?.waitUntil) {
+        Astro.locals.runtime.ctx.waitUntil(telegramPromise);
+      } else {
+        await telegramPromise;
+      }
     }
   } catch (e) {
     console.error('Error registrando visita:', e);
