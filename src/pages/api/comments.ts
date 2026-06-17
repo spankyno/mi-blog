@@ -45,8 +45,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   // Aviso de Telegram (no bloqueante)
   const env = (locals as any).runtime?.env;
+  const postRow = await db
+    .prepare(`SELECT title FROM posts WHERE slug = ? LIMIT 1`)
+    .bind(slug)
+    .first<{ title: string }>()
+    .catch(() => null);
+
   sendTelegramComentario(env, {
     slug,
+    title: postRow?.title ?? slug,
     autor: autor.trim(),
     email: email?.trim() ?? null,
     contenido: contenido.trim(),
