@@ -19,12 +19,15 @@ const allowedSort: Record<string, string> = {
 const sortCol = allowedSort[sortParam] ?? 'pub_date';
 const sortDir = dirParam === 'asc' ? 'ASC' : 'DESC';
 
+let telegramEnabled = true;
+
 if (db) {
-  const [rPosts, rPendientes, rVisitas, rMensajes] = await Promise.all([
+  const [rPosts, rPendientes, rVisitas, rMensajes, rTelegram] = await Promise.all([
     db.prepare(`SELECT slug, title, pub_date, draft FROM posts ORDER BY ${sortCol} ${sortDir}`).all(),
     db.prepare(`SELECT COUNT(*) as n FROM comments WHERE estado = 'pendiente'`).first(),
     db.prepare(`SELECT slug, COUNT(*) as n FROM page_views WHERE is_bot = 0 GROUP BY slug`).all(),
     db.prepare(`SELECT COUNT(*) as n FROM submissions WHERE revisado = 0`).first(),
+    db.prepare(`SELECT value FROM settings WHERE key = 'telegram_enabled' LIMIT 1`).first<{ value: string }>().catch(() => null),
   ]);
   posts = rPosts.results ?? [];
   pendientes = (rPendientes as any)?.n ?? 0;
@@ -32,6 +35,7 @@ if (db) {
   for (const v of (rVisitas.results ?? [])) {
     visitasMap[(v as any).slug] = (v as any).n;
   }
+  if (rTelegram) telegramEnabled = rTelegram.value !== '0';
 }
 
 function sortUrl(col: string) {
@@ -71,6 +75,17 @@ function arrow(col: string) {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           Visitas
         </a>
+        <button
+          id="telegram-toggle"
+          class={`btn-blog btn-telegram ${telegramEnabled ? 'tg-on' : 'tg-off'}`}
+          aria-label={telegramEnabled ? 'Desactivar avisos de Telegram' : 'Activar avisos de Telegram'}
+          aria-pressed={telegramEnabled ? 'true' : 'false'}
+          title={telegramEnabled ? 'Telegram: avisos activos' : 'Telegram: avisos desactivados'}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          <span id="telegram-label">{telegramEnabled ? 'Telegram ✓' : 'Telegram ✗'}</span>
+        </button>
+
         <button id="panel-theme-toggle" class="btn-blog btn-theme" aria-label="Activar modo oscuro" aria-pressed="false">
           <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
           <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
@@ -177,6 +192,32 @@ function arrow(col: string) {
 
   (window as any).deletePost = deletePost;
   (window as any).cerrarSesion = cerrarSesion;
+
+  // Toggle de Telegram
+  const tgBtn = document.getElementById('telegram-toggle') as HTMLButtonElement | null;
+  const tgLabel = document.getElementById('telegram-label');
+  if (tgBtn && tgLabel) {
+    tgBtn.addEventListener('click', async () => {
+      tgBtn.disabled = true;
+      tgBtn.style.opacity = '0.5';
+      try {
+        const res = await fetch('/api/panel/telegram', { method: 'POST' });
+        if (!res.ok) throw new Error('Error del servidor');
+        const { enabled } = await res.json() as { enabled: boolean };
+        tgBtn.classList.toggle('tg-on', enabled);
+        tgBtn.classList.toggle('tg-off', !enabled);
+        tgBtn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+        tgBtn.setAttribute('aria-label', enabled ? 'Desactivar avisos de Telegram' : 'Activar avisos de Telegram');
+        tgBtn.title = enabled ? 'Telegram: avisos activos' : 'Telegram: avisos desactivados';
+        tgLabel.textContent = enabled ? 'Telegram ✓' : 'Telegram ✗';
+      } catch {
+        alert('No se pudo cambiar el estado de Telegram.');
+      } finally {
+        tgBtn.disabled = false;
+        tgBtn.style.opacity = '';
+      }
+    });
+  }
 
   // Botón de tema del panel
   const themeBtn = document.getElementById('panel-theme-toggle');
@@ -305,6 +346,16 @@ function arrow(col: string) {
 
   /* Botón tema del panel */
   .btn-theme { cursor: pointer; font-family: inherit; }
+
+  /* Botón Telegram */
+  .btn-telegram { cursor: pointer; font-family: inherit; transition: color 0.2s, border-color 0.2s, background 0.2s; }
+  .btn-telegram.tg-on  { color: #16a34a; border-color: #86efac; }
+  .btn-telegram.tg-on:hover  { background: #f0fdf4; }
+  .btn-telegram.tg-off { color: var(--color-muted); border-color: var(--color-border); }
+  .btn-telegram.tg-off:hover { color: var(--color-text); border-color: var(--color-text); }
+  html[data-theme='dark'] .btn-telegram.tg-on  { color: #4ade80; border-color: #14532d; }
+  html[data-theme='dark'] .btn-telegram.tg-on:hover  { background: #052e16; }
+  html[data-theme='dark'] .btn-telegram.tg-off:hover { background: transparent; }
   html:not([data-theme='dark']) .moon-icon { display: none; }
   html[data-theme='dark'] .sun-icon { display: none; }
 </style>
