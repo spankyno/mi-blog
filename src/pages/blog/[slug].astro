@@ -113,6 +113,7 @@ if (db && !isPrefetch) {
       const env = Astro.locals.runtime?.env;
       const telegramPromise = sendTelegramVisita(env, {
         slug: slug!,
+        title: String(post.title),
         ip,
         city,
         country,
