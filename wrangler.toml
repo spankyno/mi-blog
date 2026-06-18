@@ -6,3 +6,7 @@ pages_build_output_dir = "./dist"
 binding = "DB"
 database_name = "mi-blog-db"
 database_id = "b3d646b0-076f-48e5-9101-4cf934b91374"
+
+[[kv_namespaces]]
+binding = "RATE_LIMIT"
+id = "db361f12a92546c88cf4f5aece57f072"
