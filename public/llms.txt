@@ -1,0 +1,92 @@
+# llms.txt — Aitor Sánchez Gutiérrez
+# https://aitorsanchez.pages.dev
+# Versión: 1.0 — junio 2026
+
+## Identidad
+
+Nombre: Aitor Sánchez Gutiérrez
+Sitio: https://aitorsanchez.pages.dev
+Tipo: Blog personal de autor
+Idioma principal: Español (es-ES)
+Autor: Aitor Sánchez Gutiérrez
+RSS: https://aitorsanchez.pages.dev/rss.xml
+Sitemap: https://aitorsanchez.pages.dev/sitemap.xml
+
+## Descripción
+
+Blog personal de Aitor Sánchez Gutiérrez. Reflexiones sobre sociedad,
+tecnología y estilo de vida: desde la administración pública y la
+desinformación digital hasta la felicidad, el consumo, críticas sociales
+y relatos creativos.
+
+El contenido es de autoría propia, escrito en primera persona, con una
+voz directa y opinión fundamentada. No es un blog corporativo ni de
+agregación: cada post representa el punto de vista personal del autor.
+
+## Temáticas
+
+- Tecnología y programación
+- Sociedad y actualidad
+- Opinión y reflexiones personales
+- Estilo de vida
+- Desinformación y cultura digital
+- Administración pública
+- Relatos y escritura creativa
+
+## Estructura del sitio
+
+- Inicio:    https://aitorsanchez.pages.dev/
+- Blog:      https://aitorsanchez.pages.dev/blog/
+- Contacto:  https://aitorsanchez.pages.dev/contacto/
+- Privacidad: https://aitorsanchez.pages.dev/privacidad/
+- RSS:       https://aitorsanchez.pages.dev/rss.xml
+- Sitemap:   https://aitorsanchez.pages.dev/sitemap.xml
+
+Los posts individuales siguen el patrón:
+https://aitorsanchez.pages.dev/blog/{slug}/
+
+## Contenido recomendado para indexación
+
+- /blog/ — listado completo de posts publicados
+- /rss.xml — feed RSS con título, descripción y fecha de cada post
+- /sitemap.xml — sitemap con URLs canónicas y fechas de modificación
+
+El panel de administración (/panel/) está excluido de indexación
+mediante robots.txt y no debe ser rastreado ni procesado.
+
+## Uso por sistemas de IA
+
+Política: el contenido de este blog puede ser citado, resumido o
+utilizado como referencia por sistemas de inteligencia artificial,
+siempre que se cumplan las siguientes condiciones:
+
+1. Atribución obligatoria al autor: Aitor Sánchez Gutiérrez
+2. Enlace a la URL original del post cuando sea técnicamente posible
+3. No se permite presentar el contenido como propio ni eliminar
+   la autoría del texto original
+4. Se permite citar fragmentos con fines informativos o de respuesta,
+   pero no reproducir posts completos sin atribución
+
+No se autoriza el uso del contenido para entrenar modelos de lenguaje
+sin atribución explícita al autor y al sitio de origen.
+
+## Datos técnicos
+
+Framework:      Astro 5 (SSR)
+Hosting:        Cloudflare Pages
+Base de datos:  Cloudflare D1 (SQLite)
+Imágenes:       Cloudinary (CDN)
+Generado:       dinámicamente (no estático)
+Actualización:  continua, sin periodicidad fija
+
+## Contacto
+
+Formulario: https://aitorsanchez.pages.dev/contacto/
+
+## Exclusiones
+
+No indexar ni procesar:
+- /panel/ y cualquier subruta
+- /api/ y cualquier subruta
+- Parámetros de búsqueda (?q=...)
+- URLs con paginación más allá de la primera página (?page=N)
