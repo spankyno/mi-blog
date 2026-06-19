@@ -84,6 +84,8 @@ if (db) {
       </address>
     </div>
   </div>
+  {/* Honeypot — invisible para humanos, visible en el HTML para crawlers */}
+  <a href="/trap" aria-hidden="true" tabindex="-1" style="position:absolute;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none;">.</a>
 </footer>
 
 <style>
