@@ -91,7 +91,7 @@ async function verifyJWT(token: string, secret: string): Promise<boolean> {
 
 export const onRequest = defineMiddleware(async (context, next) => {
   const url = new URL(context.request.url);
-  const isPanel = url.pathname.startsWith('/panel');
+  const isPanel = url.pathname.startsWith('/panel') || url.pathname.startsWith('/api/panel/');
   // Solo las páginas con el editor necesitan unsafe-eval
   const isEditor = url.pathname === '/panel/nuevo' ||
                    url.pathname.startsWith('/panel/editar/');
