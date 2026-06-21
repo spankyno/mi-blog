@@ -86,7 +86,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     status: 302,
     headers: {
       'Location': safeRedirect,
-      'Set-Cookie': `${JWT_COOKIE}=${token}; HttpOnly; Secure; SameSite=Strict; Path=/panel; Max-Age=${maxAge}`,
+      'Set-Cookie': `${JWT_COOKIE}=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${maxAge}`,
     },
   });
 };
