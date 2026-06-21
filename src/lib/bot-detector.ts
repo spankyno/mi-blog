@@ -29,28 +29,42 @@ const KNOWN_BOTS = /googlebot|google-inspectiontool|bingbot|slurp|duckduckbot|ba
 const SCRAPER_UA = /curl|wget|python-requests|python-urllib|aiohttp|scrapy|go-http-client|node-fetch|axios|java\/|libwww-perl|php\/|ruby|mechanize|httpclient|okhttp|headless|phantomjs|selenium|puppeteer|playwright|openvas/i;
 
 // ── Rate Limiting con KV ────────────────────────────────────────────────────
-// Clave: "rl:<ip>", Valor: número de visitas, TTL: 60s (auto-expira)
-const RATE_KEY_PREFIX = 'rl:';
-const RATE_WINDOW_TTL = 60; // segundos
+// Clave ventana 60s : "rl:<ip>",                        TTL: 60s
+// Clave ráfaga 1s   : "rl:burst:<ip>:<epoch_segundos>", TTL: 10s
+const RATE_KEY_PREFIX   = 'rl:';
+const RATE_BURST_PREFIX = 'rl:burst:';
+const RATE_WINDOW_TTL   = 60;  // segundos
+const RATE_BURST_TTL    = 10;  // segundos
 
 /**
- * Incrementa el contador de visitas de una IP en KV.
- * Devuelve el número de visitas en la ventana actual (60s).
+ * Incrementa los contadores de visitas de una IP en KV.
+ * Devuelve { count: visitas en 60s, burst: visitas en el segundo actual }.
  * Si KV no está disponible, hace fallback a D1.
  */
 async function getRateCount(
   ip: string,
   kv: KVNamespace | undefined,
   db: any
-): Promise<number> {
-  // Preferir KV (más rápido, auto-expira)
+): Promise<{ count: number; burst: number }> {
   if (kv) {
     try {
-      const key = `${RATE_KEY_PREFIX}${ip}`;
-      const current = parseInt(await kv.get(key) ?? '0', 10);
-      const next = current + 1;
-      await kv.put(key, String(next), { expirationTtl: RATE_WINDOW_TTL });
-      return next;
+      const key      = `${RATE_KEY_PREFIX}${ip}`;
+      const burstKey = `${RATE_BURST_PREFIX}${ip}:${Math.floor(Date.now() / 1000)}`;
+
+      const [current, currentBurst] = await Promise.all([
+        kv.get(key).then(v => parseInt(v ?? '0', 10)),
+        kv.get(burstKey).then(v => parseInt(v ?? '0', 10)),
+      ]);
+
+      const next      = current + 1;
+      const nextBurst = currentBurst + 1;
+
+      await Promise.all([
+        kv.put(key,      String(next),      { expirationTtl: RATE_WINDOW_TTL }),
+        kv.put(burstKey, String(nextBurst), { expirationTtl: RATE_BURST_TTL  }),
+      ]);
+
+      return { count: next, burst: nextBurst };
     } catch {
       // Si KV falla, caer a D1
     }
@@ -63,13 +77,30 @@ async function getRateCount(
         `SELECT COUNT(*) as n FROM page_views
          WHERE ip = ? AND viewed_at >= datetime('now', '-60 seconds')`
       ).bind(ip).first();
-      return (recent as any)?.n ?? 0;
+      return { count: (recent as any)?.n ?? 0, burst: 0 };
     } catch {
       // Ignorar errores de BD
     }
   }
 
-  return 0;
+  return { count: 0, burst: 0 };
+}
+
+/**
+ * Cuenta cuántos User-Agents distintos ha usado esta IP en los últimos 60s.
+ * Solo consultable en D1 (KV no almacena UAs).
+ */
+async function getDistinctUACount(ip: string, db: any): Promise<number> {
+  if (!db) return 0;
+  try {
+    const result = await db.prepare(
+      `SELECT COUNT(DISTINCT user_agent) as n FROM page_views
+       WHERE ip = ? AND viewed_at >= datetime('now', '-60 seconds')`
+    ).bind(ip).first();
+    return (result as any)?.n ?? 0;
+  } catch {
+    return 0;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -79,8 +110,6 @@ export async function detectBot(input: DetectionInput): Promise<BotDetectionResu
   const { userAgent, headers, ip, db, kv, cfBotScore } = input;
 
   // ── Capa 1: Headers HTTP ────────────────────────────────────────────────
-  // Un navegador real siempre envía ciertos headers; un scraper a menudo no.
-
   if (!userAgent || userAgent.trim() === '') {
     score += 80;
     reasons.push('sin-ua');
@@ -97,14 +126,12 @@ export async function detectBot(input: DetectionInput): Promise<BotDetectionResu
     reasons.push('accept-genérico');
   }
 
-  // sec-fetch-mode: navigate es un indicador fuerte de navegador real
   if (headers.get('sec-fetch-mode') === 'navigate') {
     score -= 20;
     reasons.push('sec-fetch-ok');
   }
 
   // ── Capa 1B: Cloudflare Bot Management (si disponible) ──────────────────
-  // cfBotScore: 1 = bot seguro, 99 = humano seguro
   if (typeof cfBotScore === 'number' && cfBotScore < 30) {
     score += 40;
     reasons.push(`cf-bot-score:${cfBotScore}`);
@@ -127,13 +154,39 @@ export async function detectBot(input: DetectionInput): Promise<BotDetectionResu
   // ── Capa 3: Rate limiting (KV → fallback D1) ───────────────────────────
   if (ip) {
     try {
-      const count = await getRateCount(ip, kv, db);
+      const { count, burst } = await getRateCount(ip, kv, db);
+
+      // Ráfaga en el mismo segundo — imposible para un humano
+      if (burst >= 3) {
+        score += 70;
+        reasons.push(`burst-${burst}/1s`);
+      } else if (burst >= 2) {
+        score += 35;
+        reasons.push(`burst-${burst}/1s`);
+      }
+
+      // Ventana de 60s
       if (count >= 15) {
         score += 50;
-        reasons.push('rate-15/60s');
+        reasons.push(`rate-${count}/60s`);
       } else if (count >= 8) {
         score += 25;
-        reasons.push('rate-8/60s');
+        reasons.push(`rate-${count}/60s`);
+      }
+    } catch {
+      // No penalizar si falla
+    }
+
+    // ── Capa 3B: User-Agents distintos en 60s ─────────────────────────────
+    // Un humano no cambia de navegador entre visitas. Varios UAs = bot rotador.
+    try {
+      const distinctUAs = await getDistinctUACount(ip, db);
+      if (distinctUAs >= 3) {
+        score += 60;
+        reasons.push(`multi-ua:${distinctUAs}`);
+      } else if (distinctUAs === 2) {
+        score += 20;
+        reasons.push(`multi-ua:2`);
       }
     } catch {
       // No penalizar si falla
