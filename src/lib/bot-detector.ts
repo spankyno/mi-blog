@@ -23,7 +23,7 @@ export interface DetectionInput {
 const BOT_THRESHOLD = 50;
 
 // ── Capa 2A: Bots conocidos que se auto-identifican (score +90) ─────────────
-const KNOWN_BOTS = /googlebot|google-inspectiontool|bingbot|slurp|duckduckbot|baiduspider|yandexbot|sogou|exabot|facebot|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|mediapartners-google|adsbot-google|petalbot|bytespider|gptbot|chatgpt-user|claude-web|anthropic-ai|cohere-ai|perplexitybot|meta-externalagent|ia_archiver|semrush|ahrefs|mj12bot|dotbot|rogerbot|screaming\.frog/i;
+const KNOWN_BOTS = /googlebot|google-inspectiontool|bingbot|slurp|duckduckbot|baiduspider|yandexbot|sogou|exabot|facebot|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|mediapartners-google|adsbot-google|petalbot|bytespider|gptbot|chatgpt-user|claudebot|claude-web|anthropic-ai|cohere-ai|perplexitybot|meta-externalagent|ia_archiver|semrush|ahrefs|mj12bot|dotbot|rogerbot|screaming\.frog/i;
 
 // ── Capa 2B: Herramientas de scraping / escáneres de seguridad (score +60) ──
 const SCRAPER_UA = /curl|wget|python-requests|python-urllib|aiohttp|scrapy|go-http-client|node-fetch|axios|java\/|libwww-perl|php\/|ruby|mechanize|httpclient|okhttp|headless|phantomjs|selenium|puppeteer|playwright|openvas/i;
