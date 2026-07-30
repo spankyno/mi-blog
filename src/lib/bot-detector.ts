@@ -17,13 +17,23 @@ export interface DetectionInput {
   db: any;                  // D1Database
   kv?: KVNamespace;         // Cloudflare KV "RATE_LIMIT" (opcional)
   cfBotScore?: number;      // Cloudflare Bot Management score (1 = bot, 99 = humano)
+  cf?: any;                 // Cloudflare context object (request.cf)
+  path?: string;            // The request URL pathname
 }
 
 // ── Umbral ──────────────────────────────────────────────────────────────────
 const BOT_THRESHOLD = 50;
 
+// ── Listas Blancas (Exclusiones) ────────────────────────────────────────────
+const WHITELISTED_PATHS = /^\/api\/contacto|^\/api\/webhooks|^\/api\/stripe/i;
+const WHITELISTED_UA = /stripe\/|vercel|supabase|uptime|kuma|statuscake|pingdom/i;
+const WHITELISTED_ASNS = new Set([13335]); // AS13335 = Cloudflare
+
+// ── Detección de Datacenters / Hosting ──────────────────────────────────────
+const HOSTING_ORGS = /amazon|aws|google\s+cloud|google\s+llc|microsoft\s+corporation|azure|hetzner|ovh|digitalocean|linode|leaseweb|contabo|scaleway|oracle|choopa|vultr|colocrossing|m247|limestone|hostinger|datacenter|hosting|cloud\s+vps|server/i;
+
 // ── Capa 2A: Bots conocidos que se auto-identifican (score +90) ─────────────
-const KNOWN_BOTS = /googlebot|google-inspectiontool|bingbot|slurp|duckduckbot|baiduspider|yandexbot|sogou|exabot|facebot|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|amazonbot|mediapartners-google|adsbot-google|petalbot|bytespider|gptbot|chatgpt-user|claudebot|claude-web|anthropic-ai|cohere-ai|perplexitybot|meta-externalagent|ia_archiver|semrush|ahrefs|mj12bot|dotbot|rogerbot|screaming\.frog/i;
+const KNOWN_BOTS = /googlebot|google-inspectiontool|bingbot|slurp|duckduckbot|baiduspider|yandexbot|sogou|exabot|facebot|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|mediapartners-google|adsbot-google|petalbot|bytespider|gptbot|chatgpt-user|claudebot|claude-web|anthropic-ai|cohere-ai|perplexitybot|meta-externalagent|ia_archiver|semrush|ahrefs|mj12bot|dotbot|rogerbot|screaming\.frog/i;
 
 // ── Capa 2B: Herramientas de scraping / escáneres de seguridad (score +60) ──
 const SCRAPER_UA = /curl|wget|python-requests|python-urllib|aiohttp|scrapy|go-http-client|node-fetch|axios|java\/|libwww-perl|php\/|ruby|mechanize|httpclient|okhttp|headless|phantomjs|selenium|puppeteer|playwright|openvas/i;
@@ -107,7 +117,23 @@ async function getDistinctUACount(ip: string, db: any): Promise<number> {
 export async function detectBot(input: DetectionInput): Promise<BotDetectionResult> {
   let score = 0;
   const reasons: string[] = [];
-  const { userAgent, headers, ip, db, kv, cfBotScore } = input;
+  const { userAgent, headers, ip, db, kv, cfBotScore, cf, path } = input;
+
+  // ── Capa 0: Exclusiones Previas (Whitelist) ─────────────────────────────
+  // 1. Exclusión por Ruta Crítica
+  if (path && WHITELISTED_PATHS.test(path)) {
+    return { score: 0, isBot: false, reasons: ['whitelisted-path'] };
+  }
+
+  // 2. Exclusión por User-Agent de confianza
+  if (userAgent && WHITELISTED_UA.test(userAgent)) {
+    return { score: 0, isBot: false, reasons: ['whitelisted-ua'] };
+  }
+
+  // 3. Exclusión por ASN de confianza
+  if (cf?.asn && WHITELISTED_ASNS.has(cf.asn)) {
+    return { score: 0, isBot: false, reasons: ['whitelisted-asn'] };
+  }
 
   // ── Capa 1: Headers HTTP ────────────────────────────────────────────────
   if (!userAgent || userAgent.trim() === '') {
@@ -205,6 +231,25 @@ export async function detectBot(input: DetectionInput): Promise<BotDetectionResu
       }
     } catch {
       // Tabla puede no existir aún — silenciar
+    }
+  }
+
+  // ── Capa 5: Datacenter & Browser Spoofing ───────────────────────────────
+  if (cf?.asOrganization) {
+    const isDatacenter = HOSTING_ORGS.test(cf.asOrganization);
+    const isKnownCrawlerOrScraper = userAgent && (KNOWN_BOTS.test(userAgent) || SCRAPER_UA.test(userAgent));
+    const claimsToBeBrowser = userAgent && /mozilla|chrome|safari|firefox|edge|opera|mobile/i.test(userAgent) && !isKnownCrawlerOrScraper;
+    const isVerifiedBot = cf?.botManagement?.verifiedBot === true;
+
+    if (isDatacenter && claimsToBeBrowser && !isVerifiedBot) {
+      score += 40;
+      reasons.push('browser-spoofing');
+
+      // Latencia ultrabaja en datacenter (clientTcpRtt < 10ms)
+      if (typeof cf.clientTcpRtt === 'number' && cf.clientTcpRtt >= 0 && cf.clientTcpRtt < 10) {
+        score += 30;
+        reasons.push('low-rtt-datacenter');
+      }
     }
   }
 
