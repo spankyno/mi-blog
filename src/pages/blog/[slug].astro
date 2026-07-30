@@ -95,7 +95,8 @@ if (db && !isPrefetch) {
       const cfBotScore: number = cf?.botManagement?.score ?? 99;
       const kv = env?.RATE_LIMIT ?? undefined; // KV binding
 
-      const result = await detectBot({ userAgent, headers: hdrs, ip, db, kv, cfBotScore });
+      const path = new URL(Astro.request.url).pathname;
+      const result = await detectBot({ userAgent, headers: hdrs, ip, db, kv, cfBotScore, cf, path });
 
       // Actualizar el registro con el score definitivo
       await db.prepare(
