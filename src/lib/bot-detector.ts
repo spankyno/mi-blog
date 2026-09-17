@@ -27,7 +27,10 @@ const BOT_THRESHOLD = 50;
 // ── Listas Blancas (Exclusiones) ────────────────────────────────────────────
 const WHITELISTED_PATHS = /^\/api\/contacto|^\/api\/webhooks|^\/api\/stripe/i;
 const WHITELISTED_UA = /stripe\/|vercel|supabase|uptime|kuma|statuscake|pingdom/i;
-const WHITELISTED_ASNS = new Set([13335]); // AS13335 = Cloudflare
+// AS13335 (Cloudflare) se ha retirado de la whitelist: cualquiera puede
+// heredar esa ASN proxeando peticiones a través de un Worker o de WARP,
+// así que no es una señal segura de confianza por sí sola. La exclusión
+// por User-Agent (arriba) ya cubre a los monitores de uptime legítimos.
 
 // ── Detección de Datacenters / Hosting ──────────────────────────────────────
 const HOSTING_ORGS = /amazon|aws|google\s+cloud|google\s+llc|microsoft\s+corporation|azure|hetzner|ovh|digitalocean|linode|leaseweb|contabo|scaleway|oracle|choopa|vultr|colocrossing|m247|limestone|hostinger|datacenter|hosting|cloud\s+vps|server/i;
@@ -126,13 +129,10 @@ export async function detectBot(input: DetectionInput): Promise<BotDetectionResu
   }
 
   // 2. Exclusión por User-Agent de confianza
-  if (userAgent && WHITELISTED_UA.test(userAgent)) {
+  // Un UA ausente nunca puede beneficiarse de esta whitelist: ningún monitor
+  // legítimo (uptime, stripe, etc.) omite el User-Agent por completo.
+  if (userAgent && userAgent.trim() !== '' && WHITELISTED_UA.test(userAgent)) {
     return { score: 0, isBot: false, reasons: ['whitelisted-ua'] };
-  }
-
-  // 3. Exclusión por ASN de confianza
-  if (cf?.asn && WHITELISTED_ASNS.has(cf.asn)) {
-    return { score: 0, isBot: false, reasons: ['whitelisted-asn'] };
   }
 
   // ── Capa 1: Headers HTTP ────────────────────────────────────────────────
