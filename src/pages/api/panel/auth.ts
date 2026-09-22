@@ -81,7 +81,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const maxAge = 8 * 3600;
 
   // Login correcto — emitir cookie y redirigir al panel
-  const safeRedirect = redirectTo.startsWith('/') ? redirectTo : '/panel';
+  // Solo se permite una ruta relativa DENTRO de este sitio. "//dominio.com"
+  // también empieza por "/" pero el navegador lo interpreta como una URL
+  // absoluta a otro origen (protocol-relative), así que se descarta también.
+  const safeRedirect =
+    redirectTo.startsWith('/') && !redirectTo.startsWith('//')
+      ? redirectTo
+      : '/panel';
   return new Response(null, {
     status: 302,
     headers: {

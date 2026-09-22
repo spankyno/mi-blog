@@ -5,7 +5,10 @@ export const POST: APIRoute = async () => {
     status: 200,
     headers: {
       'Content-Type': 'application/json',
-      'Set-Cookie': `panel_token=; HttpOnly; Secure; SameSite=Strict; Path=/panel; Max-Age=0`,
+      // El Path debe coincidir EXACTAMENTE con el usado al fijar la cookie en
+      // auth.ts (Path=/); si no coincide, el navegador no la borra y la sesión
+      // sigue siendo válida pese a haber "cerrado sesión".
+      'Set-Cookie': `panel_token=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0`,
     },
   });
 };
