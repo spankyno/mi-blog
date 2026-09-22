@@ -2,12 +2,13 @@ import { defineMiddleware } from 'astro:middleware';
 
 const JWT_COOKIE = 'panel_token';
 
+// CSP para la web pública
 const CSP_PUBLIC = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com https://uicdn.toast.com https://challenges.cloudflare.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://uicdn.toast.com",
   "font-src 'self' https://fonts.gstatic.com",
-  "img-src 'self' data: https: blob:",
+  "img-src 'self' data: blob: https://res.cloudinary.com https://i.imgur.com https://raw.githubusercontent.com https://www.google-analytics.com https://analytics.google.com",
   "connect-src 'self' https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com https://challenges.cloudflare.com",
   "frame-src https://challenges.cloudflare.com",
   "frame-ancestors 'none'",
@@ -23,7 +24,7 @@ const CSP_PANEL = [
   "script-src 'self' 'unsafe-inline' https://uicdn.toast.com https://www.googletagmanager.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://uicdn.toast.com",
   "font-src 'self' https://fonts.gstatic.com",
-  "img-src 'self' data: https: blob:",
+  "img-src 'self' data: blob: https://res.cloudinary.com https://i.imgur.com https://raw.githubusercontent.com",
   "connect-src 'self' https://www.google-analytics.com https://analytics.google.com",
   "frame-src 'none'",
   "frame-ancestors 'none'",
@@ -32,14 +33,14 @@ const CSP_PANEL = [
   "form-action 'self'",
 ].join('; ');
 
-// CSP para páginas con Toast UI Editor — requiere unsafe-eval
+// CSP para páginas con Toast UI Editor — requiere unsafe-eval solo para el editor
 // Solo aplica a /panel/nuevo y /panel/editar/*
 const CSP_EDITOR = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://uicdn.toast.com https://www.googletagmanager.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://uicdn.toast.com",
   "font-src 'self' https://fonts.gstatic.com",
-  "img-src 'self' data: https: blob:",
+  "img-src 'self' data: blob: https://res.cloudinary.com https://i.imgur.com https://raw.githubusercontent.com",
   "connect-src 'self' https://www.google-analytics.com https://analytics.google.com",
   "frame-src 'none'",
   "frame-ancestors 'none'",
@@ -61,12 +62,26 @@ function addSecurityHeaders(response: Response, isPanel: boolean, isEditor: bool
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
+function base64UrlDecode(str: string): Uint8Array {
+  let base64 = str.replace(/-/g, '+').replace(/_/g, '/');
+  while (base64.length % 4 !== 0) {
+    base64 += '=';
+  }
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
 async function verifyJWT(token: string, secret: string): Promise<boolean> {
   try {
     const [headerB64, payloadB64, signatureB64] = token.split('.');
     if (!headerB64 || !payloadB64 || !signatureB64) return false;
 
-    const payload = JSON.parse(atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/')));
+    const payloadText = new TextDecoder().decode(base64UrlDecode(payloadB64));
+    const payload = JSON.parse(payloadText);
     if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) return false;
 
     const data = `${headerB64}.${payloadB64}`;
@@ -78,10 +93,7 @@ async function verifyJWT(token: string, secret: string): Promise<boolean> {
       ['verify']
     );
 
-    const signature = Uint8Array.from(
-      atob(signatureB64.replace(/-/g, '+').replace(/_/g, '/')),
-      c => c.charCodeAt(0)
-    );
+    const signature = base64UrlDecode(signatureB64);
 
     return await crypto.subtle.verify('HMAC', key, signature, new TextEncoder().encode(data));
   } catch {
@@ -96,9 +108,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const isEditor = url.pathname === '/panel/nuevo' ||
                    url.pathname.startsWith('/panel/editar/');
 
-  // Excluir rutas XML — no necesitan cabeceras de seguridad web.
-  // OJO: /api/contacto NO debe estar aquí — es una API JSON normal y sí
-  // necesita las cabeceras de seguridad (se coló por error junto a los feeds).
+  // Excluir rutas XML — no necesitan cabeceras de seguridad web
   if (url.pathname === '/sitemap.xml' || url.pathname === '/rss.xml') {
     return next();
   }
@@ -124,3 +134,4 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const response = await next();
   return addSecurityHeaders(response, isPanel, isEditor);
 });
+
