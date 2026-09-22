@@ -28,6 +28,13 @@ async function createJWT(secret: string, expiresInHours = 8): Promise<string> {
   return `${data}.${sigB64}`;
 }
 
+async function timingSafeEqualStr(a: string, b: string): Promise<boolean> {
+  const enc = new TextEncoder();
+  const hashA = await crypto.subtle.digest('SHA-256', enc.encode(a));
+  const hashB = await crypto.subtle.digest('SHA-256', enc.encode(b));
+  return crypto.subtle.timingSafeEqual(hashA, hashB);
+}
+
 export const POST: APIRoute = async ({ request, locals }) => {
   const db = locals.runtime?.env?.DB;
   const env = locals.runtime?.env;
@@ -60,11 +67,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const expectedUser = env?.ADMIN_USER;
   const expectedPass = env?.ADMIN_PASS;
   const secret = env?.JWT_SECRET;
-  if (!secret) {
-    return new Response('Error de configuración del servidor', { status: 500 });
+  if (!secret || !expectedUser || !expectedPass) {
+    return new Response('Error de configuración del servidor (variables de entorno no configuradas)', { status: 500 });
   }
 
-  const valid = user === expectedUser && pass === expectedPass;
+  const userMatch = await timingSafeEqualStr(user, expectedUser);
+  const passMatch = await timingSafeEqualStr(pass, expectedPass);
+  const valid = userMatch && passMatch;
 
   // Registrar intento
   if (db) {
