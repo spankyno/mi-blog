@@ -96,8 +96,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const isEditor = url.pathname === '/panel/nuevo' ||
                    url.pathname.startsWith('/panel/editar/');
 
-  // Excluir rutas XML — no necesitan cabeceras de seguridad web
-  if (url.pathname === '/sitemap.xml' || url.pathname === '/rss.xml' || url.pathname === '/api/contacto') {
+  // Excluir rutas XML — no necesitan cabeceras de seguridad web.
+  // OJO: /api/contacto NO debe estar aquí — es una API JSON normal y sí
+  // necesita las cabeceras de seguridad (se coló por error junto a los feeds).
+  if (url.pathname === '/sitemap.xml' || url.pathname === '/rss.xml') {
     return next();
   }
 
