@@ -27,7 +27,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
   }
 
   // Verificar Turnstile
-  if (secret && token) {
+  // Si hay un secreto configurado, el token es OBLIGATORIO: omitirlo no debe
+  // saltarse la verificación (antes, sin token, este bloque entero no se
+  // ejecutaba y la petición se aceptaba igualmente).
+  if (secret) {
+    if (!token) {
+      return new Response(JSON.stringify({ error: 'Verificación de seguridad requerida.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+    }
+
     const ip = request.headers.get('cf-connecting-ip') ?? undefined;
     const formData = new FormData();
     formData.append('secret', secret);
