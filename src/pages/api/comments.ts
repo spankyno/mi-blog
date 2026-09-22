@@ -5,6 +5,28 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const db = locals.runtime?.env?.DB;
   if (!db) return new Response('DB no disponible', { status: 500 });
 
+  // Validación anti-CSRF por comprobación de Origin/Referer
+  const reqUrl = new URL(request.url);
+  const origin = request.headers.get('origin');
+  const referer = request.headers.get('referer');
+  if (origin) {
+    try {
+      if (new URL(origin).host !== reqUrl.host) {
+        return new Response('Origen no autorizado', { status: 403 });
+      }
+    } catch {
+      return new Response('Origen no válido', { status: 403 });
+    }
+  } else if (referer) {
+    try {
+      if (new URL(referer).host !== reqUrl.host) {
+        return new Response('Referer no autorizado', { status: 403 });
+      }
+    } catch {
+      return new Response('Referer no válido', { status: 403 });
+    }
+  }
+
   let body: any;
   try {
     body = await request.json();

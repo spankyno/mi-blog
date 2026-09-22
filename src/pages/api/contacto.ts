@@ -9,6 +9,28 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   if (!db) return new Response(JSON.stringify({ error: 'DB no disponible' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
 
+  // Validación anti-CSRF por comprobación de Origin/Referer
+  const reqUrl = new URL(request.url);
+  const origin = request.headers.get('origin');
+  const referer = request.headers.get('referer');
+  if (origin) {
+    try {
+      if (new URL(origin).host !== reqUrl.host) {
+        return new Response(JSON.stringify({ error: 'Origen no autorizado.' }), { status: 403, headers: { 'Content-Type': 'application/json' } });
+      }
+    } catch {
+      return new Response(JSON.stringify({ error: 'Origen no válido.' }), { status: 403, headers: { 'Content-Type': 'application/json' } });
+    }
+  } else if (referer) {
+    try {
+      if (new URL(referer).host !== reqUrl.host) {
+        return new Response(JSON.stringify({ error: 'Referer no autorizado.' }), { status: 403, headers: { 'Content-Type': 'application/json' } });
+      }
+    } catch {
+      return new Response(JSON.stringify({ error: 'Referer no válido.' }), { status: 403, headers: { 'Content-Type': 'application/json' } });
+    }
+  }
+
   let body: any;
   try { body = await request.json(); }
   catch { return new Response(JSON.stringify({ error: 'JSON inválido' }), { status: 400, headers: { 'Content-Type': 'application/json' } }); }
