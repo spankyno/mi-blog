@@ -89,6 +89,23 @@ function truncate(text: string, max = 120): string {
   return clean.length > max ? clean.slice(0, max) + '…' : clean;
 }
 
+/**
+ * Escapa los caracteres especiales de Telegram HTML (parse_mode: 'HTML').
+ * Los mensajes se construyen con datos enviados por visitantes anónimos
+ * (comentarios, formulario de contacto): sin este escapado, alguien podría
+ * incrustar etiquetas como <a href="..."> en el aviso que recibe el
+ * administrador por Telegram (por ejemplo, para suplantar un enlace del
+ * panel). Se aplica SIEMPRE a texto de usuario antes de insertarlo en el
+ * mensaje; se trunca primero y se escapa después para no partir una
+ * entidad HTML por la mitad.
+ */
+function escapeTelegramHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 /** Genera la URL de la imagen OG de Cloudinary para un título dado. */
 function buildOgImageUrl(title: string): string {
   const CLOUD_NAME = 'kalbo';
@@ -195,11 +212,11 @@ export async function sendTelegramVisita(
   const caption = [
     '<b>Visita en blog</b>',
     '─────────────────',
-    `📄 ${data.slug}`,
+    `📄 ${escapeTelegramHtml(data.slug)}`,
     `🕐 ${fecha}`,
-    `🌍 ${ubicacion}`,
-    `📱 ${dispositivo}`,
-    `🔗 IP: ${ip}`,
+    `🌍 ${escapeTelegramHtml(ubicacion)}`,
+    `📱 ${escapeTelegramHtml(dispositivo)}`,
+    `🔗 IP: ${escapeTelegramHtml(ip)}`,
   ].join('\n');
 
   const ogUrl = buildOgImageUrl(data.title);
@@ -220,18 +237,20 @@ export async function sendTelegramComentario(
   const ubicacion = [data.city, data.country].filter(Boolean).join(', ') || 'Desconocida';
   const fecha = formatFecha(data.createdAt);
   const ip = formatIp(data.ip);
-  const preview = truncate(data.contenido, 120);
+  // slug, autor, email y contenido vienen del formulario público:
+  // deben escaparse siempre antes de insertarse en el HTML del mensaje.
+  const preview = escapeTelegramHtml(truncate(data.contenido, 120));
 
   const caption = [
     '<b>Comentario nuevo</b>',
     '─────────────────',
-    `📄 ${data.slug}`,
-    `👤 ${data.autor}`,
-    data.email ? `✉️ ${data.email}` : null,
+    `📄 ${escapeTelegramHtml(data.slug)}`,
+    `👤 ${escapeTelegramHtml(data.autor)}`,
+    data.email ? `✉️ ${escapeTelegramHtml(data.email)}` : null,
     `💬 "${preview}"`,
     `🕐 ${fecha}`,
-    `🌍 ${ubicacion}`,
-    `🔗 IP: ${ip}`,
+    `🌍 ${escapeTelegramHtml(ubicacion)}`,
+    `🔗 IP: ${escapeTelegramHtml(ip)}`,
   ].filter(Boolean).join('\n');
 
   const ogUrl = buildOgImageUrl(data.title);
@@ -253,18 +272,21 @@ export async function sendTelegramContacto(
   const ubicacion = [data.city, data.country].filter(Boolean).join(', ') || 'Desconocida';
   const fecha = formatFecha(data.fechaHora);
   const ip = formatIp(data.ip);
-  const preview = truncate(data.comentario, 120);
+  // nombre, email y comentario vienen del formulario público (asunto está
+  // restringido a una whitelist en contacto.ts, pero se escapa igualmente
+  // por consistencia).
+  const preview = escapeTelegramHtml(truncate(data.comentario, 120));
 
   const text = [
     '<b>Mensaje de contacto</b>',
     '─────────────────',
-    `👤 ${data.nombre}`,
-    `✉️ ${data.email}`,
-    `📋 ${data.asunto}`,
+    `👤 ${escapeTelegramHtml(data.nombre)}`,
+    `✉️ ${escapeTelegramHtml(data.email)}`,
+    `📋 ${escapeTelegramHtml(data.asunto)}`,
     `💬 "${preview}"`,
     `🕐 ${fecha}`,
-    `🌍 ${ubicacion}`,
-    `🔗 IP: ${ip}`,
+    `🌍 ${escapeTelegramHtml(ubicacion)}`,
+    `🔗 IP: ${escapeTelegramHtml(ip)}`,
   ].join('\n');
 
   await sendMessage(token, chatId, text);
