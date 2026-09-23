@@ -75,7 +75,7 @@ if (Astro.request.method === 'POST') {
 const initialContent = post.content ?? '';
 ---
 <Base title={`Editar: ${post.title} — Panel`}>
-  <link rel="stylesheet" href="https://uicdn.toast.com/editor/latest/toastui-editor.min.css" />
+  <link rel="stylesheet" href="https://uicdn.toast.com/editor/3.2.2/toastui-editor.min.css" />
 
   <main>
     <div class="topbar">
@@ -151,7 +151,7 @@ const initialContent = post.content ?? '';
 
 <script define:vars={{ initialContent }}>
   const script = document.createElement('script');
-  script.src = 'https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js';
+  script.src = 'https://uicdn.toast.com/editor/3.2.2/toastui-editor-all.min.js';
   script.onload = () => {
     const { Editor } = window.toastui;
 
