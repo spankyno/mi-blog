@@ -101,14 +101,17 @@ const breadcrumbLd = ogType === 'article' ? {
 <html lang="es">
   <head>
     <!-- Anti-flicker: DEBE ser el primer script del <head>.
-         Lee localStorage o prefers-color-scheme ANTES de pintar el HTML.
-         Sin esto el body aparece en claro y luego salta a oscuro (FOUC). -->
+         Lee localStorage (tema y aviso de privacidad) ANTES de pintar el HTML.
+         Sin esto el body aparece en claro y salta a oscuro (FOUC) o el aviso de cookies parpadea. -->
     <script is:inline>
       (function() {
         try {
           var stored = localStorage.getItem('theme');
           if (stored === 'dark' || (!stored && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
             document.documentElement.setAttribute('data-theme', 'dark');
+          }
+          if (localStorage.getItem('aviso-ok')) {
+            document.documentElement.classList.add('aviso-dismissed');
           }
         } catch(e) {}
       })();
@@ -371,7 +374,7 @@ const breadcrumbLd = ogType === 'article' ? {
 
     <div id="aviso-privacidad" transition:persist>
       <p>Este sitio usa Google Analytics para medir el tráfico de forma anónima, y registra datos de acceso con fines de seguridad. No se usan cookies de publicidad.</p>
-      <button onclick="document.getElementById('aviso-privacidad').style.display='none';localStorage.setItem('aviso-ok','1')">Entendido</button>
+      <button onclick="localStorage.setItem('aviso-ok','1');document.documentElement.classList.add('aviso-dismissed');">Entendido</button>
     </div>
 
     <script>
@@ -388,18 +391,20 @@ const breadcrumbLd = ogType === 'article' ? {
         } catch(e) {}
       }
       document.addEventListener('astro:before-swap', function(e) {
-        // Propaga el data-theme al nuevo documento antes del swap
+        // Propaga el data-theme y la clase del aviso al nuevo documento antes del swap
         var theme = document.documentElement.getAttribute('data-theme');
         if (theme) {
           e.newDocument.documentElement.setAttribute('data-theme', theme);
+        }
+        if (document.documentElement.classList.contains('aviso-dismissed')) {
+          e.newDocument.documentElement.classList.add('aviso-dismissed');
         }
       });
       document.addEventListener('astro:page-load', applyTheme);
 
       function checkAviso() {
         if (localStorage.getItem('aviso-ok')) {
-          const el = document.getElementById('aviso-privacidad');
-          if (el) el.style.display = 'none';
+          document.documentElement.classList.add('aviso-dismissed');
         }
       }
       checkAviso();
@@ -407,6 +412,9 @@ const breadcrumbLd = ogType === 'article' ? {
     </script>
 
     <style>
+      html.aviso-dismissed #aviso-privacidad {
+        display: none !important;
+      }
       #aviso-privacidad {
         position: fixed;
         bottom: 1.5rem;
