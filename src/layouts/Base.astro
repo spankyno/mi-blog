@@ -178,20 +178,28 @@ const breadcrumbLd = ogType === 'article' ? {
     <!-- View Transitions — solo fuera del panel -->
     {!isPanel && <ViewTransitions />}
 
-    <!-- Google Analytics GA4 -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-BGWJGKHK8V"></script>
-    <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'G-BGWJGKHK8V');
-      document.addEventListener('astro:page-load', () => {
-        gtag('event', 'page_view', {
-          page_location: window.location.href,
-          page_title: document.title,
-        });
-      });
-    </script>
+    <!-- Google Analytics GA4 — solo fuera del panel.
+         No hay motivo para trackear tus propias visitas de administrador,
+         y evita cargar el SDK de Google (con sus APIs de Privacy Sandbox:
+         Attribution Reporting, Protected Audience, Private Aggregation)
+         en las páginas donde vives editando/gestionando el sitio. -->
+    {!isPanel && (
+      <>
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-BGWJGKHK8V"></script>
+        <script>
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          gtag('config', 'G-BGWJGKHK8V');
+          document.addEventListener('astro:page-load', () => {
+            gtag('event', 'page_view', {
+              page_location: window.location.href,
+              page_title: document.title,
+            });
+          });
+        </script>
+      </>
+    )}
 
     <!-- Preconnect a servicios externos -->
     <link rel="preconnect" href="https://res.cloudinary.com" />
