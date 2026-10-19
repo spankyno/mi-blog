@@ -79,56 +79,93 @@ if (db && !isPrefetch) {
     const viewedAt = new Date().toISOString();
 
     // Detección rápida por UA (síncrona — no bloquea la respuesta)
-    const quickBot = !userAgent || /googlebot|google-inspectiontool|bingbot|gptbot|bot[\/\s;)]|crawler|spider|curl|wget|python|scrapy|headless|openvas/i.test(userAgent ?? '');
-    const isBot = quickBot ? 1 : 0;
+    // Defensa: IPs de las listas (blocklist) se marcan como bot en todos los niveles.
+    const defenseInfo = (Astro.locals as any).defense as { level: number; flags: string[]; watch?: string[]; lite?: boolean } | undefined;
+    const defenseFlagged = !!defenseInfo?.flags?.some((f) => f.startsWith('blocklist') || f.startsWith('rule:'));
 
-    // Insertar visita con is_bot básico (respuesta no bloqueada)
-    const insertPromise = db.prepare(
-      `INSERT INTO page_views (slug, viewed_at, ip, country, region, city, user_agent, referer, is_bot, bot_score)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`
-    ).bind(slug, viewedAt, ip, country, region, city, userAgent, referer, isBot).run();
+    // Modo lite (nivel ≥ 1): las visitas ya marcadas por las listas/reglas no se
+    // registran (se cuentan en defense_hourly). Ahorra escrituras de D1.
+    const skipLogging = defenseFlagged && (defenseInfo?.level ?? 0) >= 1 && !!defenseInfo?.lite;
+    if (!skipLogging) {
+      const quickBot = defenseFlagged || !userAgent || /googlebot|google-inspectiontool|bingbot|gptbot|bot[\/\s;)]|crawler|spider|curl|wget|python|scrapy|headless|openvas/i.test(userAgent ?? '');
+      const isBot = quickBot ? 1 : 0;
 
-    // Scoring completo + Telegram asíncrono (no bloquea la respuesta al usuario)
-    const env = Astro.locals.runtime?.env;
-    const scoringPromise = (async () => {
-      try {
-        const { detectBot } = await import('../../lib/bot-detector');
-        const cfBotScore: number = cf?.botManagement?.score ?? 99;
-        const kv = env?.RATE_LIMIT ?? undefined; // KV binding
+      // Insertar visita con is_bot básico (respuesta no bloqueada)
+      const insertPromise = db.prepare(
+        `INSERT INTO page_views (slug, viewed_at, ip, country, region, city, user_agent, referer, is_bot, bot_score)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`
+      ).bind(slug, viewedAt, ip, country, region, city, userAgent, referer, isBot).run();
 
-        const path = new URL(Astro.request.url).pathname;
-        const result = await detectBot({ userAgent, headers: hdrs, ip, db, kv, cfBotScore, cf, path });
+      // Scoring completo + Telegram asíncrono (no bloquea la respuesta al usuario)
+      const env = Astro.locals.runtime?.env;
+      const scoringPromise = (async () => {
+        try {
+          // El UPDATE final necesita que el INSERT inicial ya exista.
+          await insertPromise;
+          const { detectBot } = await import('../../lib/bot-detector');
 
-        // Actualizar el registro con el score definitivo
-        await db.prepare(
-          `UPDATE page_views SET is_bot = ?, bot_score = ?
-           WHERE slug = ? AND ip = ? AND viewed_at = ?`
-        ).bind(result.isBot ? 1 : 0, result.score, slug, ip, viewedAt).run();
+          let result: { score: number; isBot: boolean; reasons: string[] };
+          if (defenseFlagged && (defenseInfo?.level ?? 0) >= 1) {
+            // Nivel ≥ 1: la IP ya está en las listas → sin scoring completo ni KV.
+            result = { score: 100, isBot: true, reasons: defenseInfo!.flags };
+          } else {
+            const cfBotScore: number = cf?.botManagement?.score ?? 99;
+            const kv = env?.RATE_LIMIT ?? undefined; // KV binding
+            const path = new URL(Astro.request.url).pathname;
+            result = await detectBot({ userAgent, headers: hdrs, ip, db, kv, cfBotScore, cf, path });
+            if (defenseFlagged) {
+              result = { score: 100, isBot: true, reasons: [...defenseInfo!.flags, ...result.reasons] };
+            }
+          }
+
+          if (defenseInfo?.watch?.length) result.reasons = [...result.reasons, ...defenseInfo.watch];
+
+        // Actualizar el registro con el score definitivo (y el motivo, si la
+          // columna bot_reasons existe; si no, se guarda sin él).
+          const reasonsText = result.reasons.join(',').slice(0, 300);
+          try {
+            await db.prepare(
+              `UPDATE page_views SET is_bot = ?, bot_score = ?, bot_reasons = ?
+               WHERE slug = ? AND ip = ? AND viewed_at = ?`
+            ).bind(result.isBot ? 1 : 0, result.score, reasonsText, slug, ip, viewedAt).run();
+          } catch {
+            await db.prepare(
+              `UPDATE page_views SET is_bot = ?, bot_score = ?
+               WHERE slug = ? AND ip = ? AND viewed_at = ?`
+            ).bind(result.isBot ? 1 : 0, result.score, slug, ip, viewedAt).run();
+          }
+
+          // Auto-baneo de reincidentes (solo cuenta bots no declarados con score alto)
+        if (result.isBot) {
+          const { recordBotVisit } = await import('../../lib/defense');
+          await recordBotVisit({ db, ip, userAgent, asn: typeof cf?.asn === 'number' ? cf.asn : null, score: result.score, reasons: result.reasons, env, alreadyFlagged: defenseFlagged });
+        }
 
         // Aviso de Telegram solo para visitas humanas (score < umbral)
-        if (!result.isBot) {
-          await sendTelegramVisita(env, {
-            slug: slug!,
-            title: String(post.title),
-            ip,
-            city,
-            country,
-            userAgent,
-            viewedAt,
-          });
+          if (!result.isBot) {
+            await sendTelegramVisita(env, {
+              slug: slug!,
+              title: String(post.title),
+              ip,
+              city,
+              country,
+              userAgent,
+              viewedAt,
+            });
+          }
+        } catch (e) {
+          // Antes este error se perdía: waitUntil no lo propaga al catch exterior.
+          console.error('Error en scoring async de visita:', e);
         }
-      } catch (e) {
-        // Antes este error se perdía: waitUntil no lo propaga al catch exterior.
-        console.error('Error en scoring async de visita:', e);
-      }
-    })();
+      })();
 
-    if (Astro.locals.runtime?.ctx?.waitUntil) {
-      Astro.locals.runtime.ctx.waitUntil(insertPromise);
-      Astro.locals.runtime.ctx.waitUntil(scoringPromise);
-    } else {
-      await insertPromise;
-      await scoringPromise;
+      if (Astro.locals.runtime?.ctx?.waitUntil) {
+        Astro.locals.runtime.ctx.waitUntil(insertPromise);
+        Astro.locals.runtime.ctx.waitUntil(scoringPromise);
+      } else {
+        await insertPromise;
+        await scoringPromise;
+      }
     }
   } catch (e) {
     console.error('Error registrando visita:', e);
