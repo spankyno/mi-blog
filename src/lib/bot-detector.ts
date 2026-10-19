@@ -88,8 +88,8 @@ async function getRateCount(
     try {
       const recent = await db.prepare(
         `SELECT COUNT(*) as n FROM page_views
-         WHERE ip = ? AND viewed_at >= datetime('now', '-60 seconds')`
-      ).bind(ip).first();
+         WHERE ip = ? AND viewed_at >= ?`
+      ).bind(ip, new Date(Date.now() - 60_000).toISOString()).first();
       return { count: (recent as any)?.n ?? 0, burst: 0 };
     } catch {
       // Ignorar errores de BD
@@ -108,8 +108,8 @@ async function getDistinctUACount(ip: string, db: any): Promise<number> {
   try {
     const result = await db.prepare(
       `SELECT COUNT(DISTINCT user_agent) as n FROM page_views
-       WHERE ip = ? AND viewed_at >= datetime('now', '-60 seconds')`
-    ).bind(ip).first();
+       WHERE ip = ? AND viewed_at >= ?`
+    ).bind(ip, new Date(Date.now() - 60_000).toISOString()).first();
     return (result as any)?.n ?? 0;
   } catch {
     return 0;
@@ -177,8 +177,44 @@ export async function detectBot(input: DetectionInput): Promise<BotDetectionResu
     }
   }
 
+  // ── Capa 4: Honeypot (solo con IP y DB) ─────────────────────────────────
+  if (ip && db) {
+    try {
+      const trapped = await db.prepare(
+        `SELECT 1 FROM bot_ips WHERE ip = ?`
+      ).bind(ip).first();
+      if (trapped) {
+        score += 100;
+        reasons.push('honeypot');
+      }
+    } catch {
+      // Tabla puede no existir aún — silenciar
+    }
+  }
+
+  // ── Capa 5: Datacenter & Browser Spoofing ───────────────────────────────
+  if (cf?.asOrganization) {
+    const isDatacenter = HOSTING_ORGS.test(cf.asOrganization);
+    const isKnownCrawlerOrScraper = userAgent && (KNOWN_BOTS.test(userAgent) || SCRAPER_UA.test(userAgent));
+    const claimsToBeBrowser = userAgent && /mozilla|chrome|safari|firefox|edge|opera|mobile/i.test(userAgent) && !isKnownCrawlerOrScraper;
+    const isVerifiedBot = cf?.botManagement?.verifiedBot === true;
+
+    if (isDatacenter && claimsToBeBrowser && !isVerifiedBot) {
+      score += 40;
+      reasons.push('browser-spoofing');
+
+      // Latencia ultrabaja en datacenter (clientTcpRtt < 10ms)
+      if (typeof cf.clientTcpRtt === 'number' && cf.clientTcpRtt >= 0 && cf.clientTcpRtt < 10) {
+        score += 30;
+        reasons.push('low-rtt-datacenter');
+      }
+    }
+  }
+
   // ── Capa 3: Rate limiting (KV → fallback D1) ───────────────────────────
-  if (ip) {
+  // Si las capas baratas (sin KV) ya lo clasifican como bot, no gastamos
+  // escrituras de KV (límite gratuito: 1.000/día).
+  if (ip && score < BOT_THRESHOLD) {
     try {
       const { count, burst } = await getRateCount(ip, kv, db);
 
@@ -216,40 +252,6 @@ export async function detectBot(input: DetectionInput): Promise<BotDetectionResu
       }
     } catch {
       // No penalizar si falla
-    }
-  }
-
-  // ── Capa 4: Honeypot (solo con IP y DB) ─────────────────────────────────
-  if (ip && db) {
-    try {
-      const trapped = await db.prepare(
-        `SELECT 1 FROM bot_ips WHERE ip = ?`
-      ).bind(ip).first();
-      if (trapped) {
-        score += 100;
-        reasons.push('honeypot');
-      }
-    } catch {
-      // Tabla puede no existir aún — silenciar
-    }
-  }
-
-  // ── Capa 5: Datacenter & Browser Spoofing ───────────────────────────────
-  if (cf?.asOrganization) {
-    const isDatacenter = HOSTING_ORGS.test(cf.asOrganization);
-    const isKnownCrawlerOrScraper = userAgent && (KNOWN_BOTS.test(userAgent) || SCRAPER_UA.test(userAgent));
-    const claimsToBeBrowser = userAgent && /mozilla|chrome|safari|firefox|edge|opera|mobile/i.test(userAgent) && !isKnownCrawlerOrScraper;
-    const isVerifiedBot = cf?.botManagement?.verifiedBot === true;
-
-    if (isDatacenter && claimsToBeBrowser && !isVerifiedBot) {
-      score += 40;
-      reasons.push('browser-spoofing');
-
-      // Latencia ultrabaja en datacenter (clientTcpRtt < 10ms)
-      if (typeof cf.clientTcpRtt === 'number' && cf.clientTcpRtt >= 0 && cf.clientTcpRtt < 10) {
-        score += 30;
-        reasons.push('low-rtt-datacenter');
-      }
     }
   }
 
