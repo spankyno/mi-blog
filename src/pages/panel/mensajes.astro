@@ -1,5 +1,5 @@
 ---
-import Base from '../../layouts/Base.astro';
+import Panel from '../../layouts/Panel.astro';
 
 const db = Astro.locals.runtime?.env?.DB;
 let pendientes: any[] = [];
@@ -14,14 +14,10 @@ if (db) {
   revisados = rRevisados.results ?? [];
 }
 ---
-<Base title="Mensajes — Panel">
+<Panel title="Mensajes — Panel" active="mensajes">
   <main>
     <div class="topbar">
       <h1>Mensajes de contacto</h1>
-      <a href="/panel" class="btn-back">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><line x1="19" x2="5" y1="12" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
-        Panel
-      </a>
     </div>
 
     <section>
@@ -73,7 +69,7 @@ if (db) {
       ))}
     </section>
   </main>
-</Base>
+</Panel>
 
 <script>
   async function revisar(id: number) {

@@ -1,0 +1,785 @@
+---
+import Panel from '../../layouts/Panel.astro';
+import { LEVELS, DEFAULTS, AUTOBAN_DEFAULTS, ALERT_DEFAULTS, RETENTION, ENFORCEABLE_SCOPES, type DefenseLevel } from '../../lib/defense/config';
+import { previewPurge, type PurgeCounts } from '../../lib/defense/purge';
+
+const db = Astro.locals.runtime?.env?.DB;
+const cf = (Astro.locals.runtime as any)?.cf;
+const myIp = Astro.request.headers.get('cf-connecting-ip') ?? '—';
+const myAsn = typeof cf?.asn === 'number' ? `AS${cf.asn}` : null;
+const myOrg = cf?.asOrganization ?? null;
+const myCountry = cf?.country ?? Astro.request.headers.get('cf-ipcountry') ?? null;
+
+let level: DefenseLevel = DEFAULTS.level;
+let enabled = true;
+let maintMsg = DEFAULTS.maintenanceMessage;
+let maintEta = '';
+let prevLevel = 0;
+let blocks: any[] = [];
+let allows: any[] = [];
+let events: any[] = [];
+let hourly: Record<string, any> = {};
+let topIps: any[] = [];
+let totals = { views: 0, bots: 0 };
+let honeypotCount = 0;
+let missingTables = false;
+let rules: any[] = [];
+let autoBan = { enabled: AUTOBAN_DEFAULTS.enabled, hits: AUTOBAN_DEFAULTS.hits, windowMin: AUTOBAN_DEFAULTS.windowMin, hours: AUTOBAN_DEFAULTS.hours };
+let liteSkip = false;
+let autoPurge = false;
+let lastPurge = '';
+let purgeCounts: PurgeCounts = { botViews: 0, humanViews: 0, botIps: 0, events: 0, hourly: 0, expiredBlocks: 0 };
+let autoEntries = 0;
+let scoredVisits: number | null = null;
+let alerts = { ...ALERT_DEFAULTS };
+let telegramMuted = false;
+const env = (Astro.locals.runtime?.env ?? {}) as any;
+const tgConfigured = !!(env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID);
+const tgWebhookSecret = !!env.TELEGRAM_WEBHOOK_SECRET;
+
+const nowMs = Date.now();
+const since24 = new Date(nowMs - 24 * 3600_000);
+const sinceIso = since24.toISOString();
+const sinceHour = sinceIso.slice(0, 13);
+
+function guard<T>(p: Promise<T>, fallback: T): Promise<T> {
+  return p.catch((e: any) => {
+    if (/no such table/i.test(String(e?.message ?? e))) missingTables = true;
+    return fallback;
+  });
+}
+
+if (db) {
+  const [rSet, rBlocks, rAllows, rEvents, rHourly, rTop, rTotals, rHoney, rRules, rPurge, rScored] = await Promise.all([
+    guard(db.prepare(`SELECT key, value FROM settings WHERE key IN ('defense_enabled','defense_level','defense_prev_level','maintenance_message','maintenance_eta','defense_auto_ban','defense_autoban_hits','defense_autoban_window_min','defense_autoban_hours','defense_lite_skip_logging','defense_auto_purge','defense_last_purge','defense_alerts_enabled','defense_alert_ip_per_min','defense_alert_wave_5min','defense_alert_cooldown_min','defense_auto_escalate','defense_notify_changes','telegram_enabled')`).all(), { results: [] } as any),
+    guard(db.prepare(`SELECT id, kind, value, reason, source, created_at, expires_at FROM blocked_ips ORDER BY created_at DESC LIMIT 200`).all(), { results: [] } as any),
+    guard(db.prepare(`SELECT id, kind, value, note, created_at FROM allow_list ORDER BY created_at DESC LIMIT 100`).all(), { results: [] } as any),
+    guard(db.prepare(`SELECT ts, type, ip, detail FROM defense_events ORDER BY id DESC LIMIT 15`).all(), { results: [] } as any),
+    guard(db.prepare(`SELECT hour, flagged, limited, blocked, maint FROM defense_hourly WHERE hour >= ?`).bind(sinceHour).all(), { results: [] } as any),
+    guard(db.prepare(`SELECT ip, COUNT(*) AS n, SUM(is_bot) AS bots, MAX(country) AS country FROM page_views WHERE viewed_at >= ? GROUP BY ip ORDER BY n DESC LIMIT 12`).bind(sinceIso).all(), { results: [] } as any),
+    guard(db.prepare(`SELECT COUNT(*) AS views, COALESCE(SUM(is_bot),0) AS bots FROM page_views WHERE viewed_at >= ?`).bind(sinceIso).first(), null as any),
+    guard(db.prepare(`SELECT COUNT(*) AS n FROM bot_ips`).first(), null as any),
+    guard(db.prepare(`SELECT id, name, enabled, scope, path_pattern, max_hits, window_s, action, ban_minutes FROM defense_rules ORDER BY id`).all(), { results: [] } as any),
+    guard(previewPurge(db), null as any),
+    // Visitas de las últimas 24 h que pasaron por el scoring completo (no las marcadas por listas/reglas)
+    guard(db.prepare(`SELECT COUNT(*) AS n FROM page_views WHERE viewed_at >= ? AND (bot_reasons IS NULL OR (bot_reasons NOT LIKE 'blocklist%' AND bot_reasons NOT LIKE 'rule:%'))`).bind(sinceIso).first(), null as any),
+  ]);
+
+  const set: Record<string, string> = {};
+  for (const r of (rSet.results ?? []) as any[]) set[r.key] = String(r.value);
+  const lv = parseInt(set['defense_level'] ?? '0', 10);
+  level = (Number.isInteger(lv) && lv >= 0 && lv <= 3 ? lv : 0) as DefenseLevel;
+  enabled = set['defense_enabled'] !== '0';
+  maintMsg = set['maintenance_message'] || DEFAULTS.maintenanceMessage;
+  maintEta = set['maintenance_eta'] || '';
+  const pl = parseInt(set['defense_prev_level'] ?? '0', 10);
+  prevLevel = Number.isInteger(pl) && pl >= 0 && pl <= 2 ? pl : 0;
+
+  blocks = (rBlocks.results ?? []) as any[];
+  allows = (rAllows.results ?? []) as any[];
+  events = (rEvents.results ?? []) as any[];
+  for (const h of (rHourly.results ?? []) as any[]) hourly[h.hour] = h;
+  topIps = (rTop.results ?? []) as any[];
+  totals = { views: (rTotals as any)?.views ?? 0, bots: (rTotals as any)?.bots ?? 0 };
+  honeypotCount = (rHoney as any)?.n ?? 0;
+
+  rules = (rRules.results ?? []) as any[];
+  const num = (k: string, d: number) => { const n = parseInt(set[k] ?? '', 10); return Number.isFinite(n) ? n : d; };
+  autoBan = {
+    enabled: set['defense_auto_ban'] !== '0',
+    hits: num('defense_autoban_hits', AUTOBAN_DEFAULTS.hits),
+    windowMin: num('defense_autoban_window_min', AUTOBAN_DEFAULTS.windowMin),
+    hours: num('defense_autoban_hours', AUTOBAN_DEFAULTS.hours),
+  };
+  liteSkip = set['defense_lite_skip_logging'] === '1';
+  autoPurge = set['defense_auto_purge'] === '1';
+  lastPurge = set['defense_last_purge'] ?? '';
+  alerts = {
+    enabled: set['defense_alerts_enabled'] !== '0',
+    ipPerMin: num('defense_alert_ip_per_min', ALERT_DEFAULTS.ipPerMin),
+    wave5min: num('defense_alert_wave_5min', ALERT_DEFAULTS.wave5min),
+    cooldownMin: num('defense_alert_cooldown_min', ALERT_DEFAULTS.cooldownMin),
+    autoEscalate: set['defense_auto_escalate'] === '1',
+    notifyChanges: set['defense_notify_changes'] !== '0',
+  };
+  telegramMuted = set['telegram_enabled'] === '0';
+  if (rPurge) purgeCounts = rPurge as PurgeCounts;
+  scoredVisits = rScored ? ((rScored as any).n ?? 0) : null;
+  autoEntries = blocks.filter((b: any) => b.source === 'auto' && !(b.expires_at && Date.parse(b.expires_at) < nowMs)).length;
+}
+// Estimaciones de uso diario (cota superior; las cifras exactas están en el panel de Cloudflare)
+const KV_WRITE_LIMIT = 1000, D1_WRITE_LIMIT = 100_000;
+const kvWrites = scoredVisits === null ? null : scoredVisits * 2; // clave de ventana + clave de ráfaga por visita puntuada
+const d1Writes = totals.views * 2 + 60; // INSERT + UPDATE por visita registrada + volcado de contadores
+const quotaRows = [
+  { label: 'Escrituras de KV', value: kvWrites, limit: KV_WRITE_LIMIT, note: 'cota superior: 2 por visita que llega al rate limiting' },
+  { label: 'Escrituras de D1', value: d1Writes, limit: D1_WRITE_LIMIT, note: '≈ 2 por visita registrada + contadores' },
+].map((q) => {
+  const pct = q.value === null ? null : Math.min(100, Math.round((q.value / q.limit) * 100));
+  return { ...q, pct, tone: pct === null ? '' : pct >= 80 ? 'hi' : pct >= 50 ? 'mid' : 'ok' };
+});
+const purgeTotal = Object.values(purgeCounts).reduce((a, b) => a + b, 0);
+const scopeLabel: Record<string, string> = { ip: 'Por IP', ua: 'Mismo UA', asn: 'Por ASN', global: 'Global' };
+const actionLabel: Record<string, string> = { flag: 'Marcar', limit: '429', ban: '429 + baneo' };
+
+// Barras de las últimas 24 horas
+const hours: { key: string; label: string; total: number; flagged: number; blocked: number; maint: number }[] = [];
+for (let i = 23; i >= 0; i--) {
+  const key = new Date(nowMs - i * 3600_000).toISOString().slice(0, 13);
+  const h = hourly[key] ?? {};
+  const flagged = h.flagged ?? 0, blocked = (h.blocked ?? 0) + (h.limited ?? 0), maint = h.maint ?? 0;
+  hours.push({ key, label: key.slice(11) + ':00 UTC', total: flagged + blocked + maint, flagged, blocked, maint });
+}
+const maxHour = Math.max(1, ...hours.map((h) => h.total));
+const sum = (k: 'flagged' | 'blocked' | 'maint') => hours.reduce((a, h) => a + h[k], 0);
+
+const fmt = (iso?: string | null) =>
+  iso ? new Date(iso).toLocaleString('es-ES', { timeZone: 'Europe/Madrid', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
+const isExpired = (iso?: string | null) => !!iso && Date.parse(iso) < nowMs;
+const kindLabel: Record<string, string> = { ip: 'IP', cidr: 'Rango', asn: 'ASN', country: 'País' };
+const levelKeys = [0, 1, 2, 3] as DefenseLevel[];
+const inMaintenance = level === 3;
+---
+<Panel title="Defensa — Panel" active="defensa">
+  <main>
+    <div class="topbar">
+      <h1>Defensa</h1>
+      <span class={`chip lv-${level}`} id="level-chip">Nivel {level} · {LEVELS[level].name}{!enabled ? ' (desactivada)' : ''}</span>
+    </div>
+
+    {missingTables && (
+      <div class="notice warn">
+        <strong>Faltan las tablas de defensa.</strong> Ejecuta la migración y recarga:
+        <code>npx wrangler d1 execute mi-blog-db --remote --file=db/migrations/0001_defense_tables.sql</code>
+      </div>
+    )}
+
+    <p class="lag">Los cambios pueden tardar hasta ~60 s en aplicarse a todo el sitio (caché por servidor).</p>
+
+    <!-- Resumen 24 h -->
+    <section class="stats">
+      <div class="stat"><span class="stat-n">{totals.views}</span><span class="stat-l">Visitas registradas (24 h)</span></div>
+      <div class="stat"><span class="stat-n">{totals.bots}</span><span class="stat-l">Marcadas como bot</span></div>
+      <div class="stat"><span class="stat-n">{sum('flagged')}</span><span class="stat-l">Marcadas por listas</span></div>
+      <div class="stat"><span class="stat-n">{sum('blocked')}</span><span class="stat-l">Bloqueadas (403)</span></div>
+      <div class="stat"><span class="stat-n">{sum('maint')}</span><span class="stat-l">Respondidas 503</span></div>
+    </section>
+
+    <!-- Nivel -->
+    <section id="nivel" class="card">
+      <h2>Nivel de defensa</h2>
+      <div class="levels" role="radiogroup" aria-label="Nivel de defensa">
+        {levelKeys.map((n) => (
+          <button class={`level lv-${n} ${level === n ? 'active' : ''}`} data-act="level" data-level={n} role="radio" aria-checked={level === n ? 'true' : 'false'}>
+            <span class="level-n">{n}</span>
+            <span class="level-name">{LEVELS[n].name}</span>
+            <span class="level-short">{LEVELS[n].short}</span>
+            <span class="level-desc">{LEVELS[n].description}</span>
+          </button>
+        ))}
+      </div>
+      <label class="switch-row">
+        <input type="checkbox" id="enabled-toggle" checked={enabled} />
+        <span><strong>Defensa activa</strong> — interruptor maestro. Desmarcado, el módulo no hace nada (el blog se comporta como antes de instalarlo).</span>
+      </label>
+      <label class="switch-row">
+        <input type="checkbox" id="lite-toggle" checked={liteSkip} />
+        <span><strong>Modo lite</strong> — en nivel 1 o superior, las visitas ya marcadas por las listas o reglas no se registran en <code>page_views</code> (solo se cuentan arriba). Ahorra escrituras de D1 durante un ataque, pero esas visitas dejan de aparecer en Visitas.</span>
+      </label>
+    </section>
+
+    <!-- Mantenimiento -->
+    <section id="mantenimiento" class={`card ${inMaintenance ? 'card-alert' : ''}`}>
+      <h2>Modo mantenimiento</h2>
+      <p class="muted">Devuelve un 503 con <code>Retry-After</code> a todo el sitio público. El panel sigue accesible. {inMaintenance ? 'Ahora mismo está ACTIVADO.' : ''}</p>
+      <div class="form-grid">
+        <label class="field wide">
+          <span>Mensaje para los visitantes</span>
+          <textarea id="maint-message" rows="2" maxlength="500">{maintMsg}</textarea>
+        </label>
+        <label class="field">
+          <span>Vuelta estimada (opcional)</span>
+          <input type="datetime-local" id="maint-eta" data-iso={maintEta} />
+        </label>
+      </div>
+      <div class="row">
+        {inMaintenance ? (
+          <button class="btn primary" data-act="maint-off">Desactivar y volver al nivel {prevLevel}</button>
+        ) : (
+          <button class="btn danger" data-act="maint-on">Activar mantenimiento</button>
+        )}
+        <span class="muted small">La hora estimada se interpreta en tu zona horaria.</span>
+      </div>
+    </section>
+
+    <!-- Tu conexión -->
+    <section id="conexion" class="card">
+      <h2>Tu conexión</h2>
+      <p class="muted">El panel nunca se bloquea, pero conviene que tu IP esté en la lista blanca antes de subir de nivel.</p>
+      <div class="row">
+        <code class="ip">{myIp}</code>
+        {myAsn && <span class="muted small">{myAsn}{myOrg ? ` · ${myOrg}` : ''}{myCountry ? ` · ${myCountry}` : ''}</span>}
+        {myIp !== '—' && <button class="btn" data-act="allow-me" data-ip={myIp}>Añadir a lista blanca</button>}
+      </div>
+    </section>
+
+    <!-- Bloqueos -->
+    <section id="listas" class="card">
+      <h2>Lista de bloqueo</h2>
+      <p class="muted">En niveles 0–1 estas entradas solo <strong>marcan</strong> la visita como bot. En nivel 2 reciben un 403. {honeypotCount > 0 ? `El honeypot ha atrapado ${honeypotCount} IPs (se marcan siempre, nunca se bloquean).` : ''}</p>
+      <form data-form="block" class="form-grid">
+        <label class="field"><span>Tipo</span>
+          <select name="kind">
+            <option value="ip">IP</option><option value="cidr">Rango CIDR</option>
+            <option value="asn">ASN</option><option value="country">País (ISO 2)</option>
+          </select>
+        </label>
+        <label class="field grow"><span>Valor</span><input name="value" required placeholder="45.138.12.27 · 45.138.12.0/24 · 16276 · PL" autocomplete="off" /></label>
+        <label class="field"><span>Duración</span>
+          <select name="duration_min">
+            <option value="1440">24 horas</option><option value="60">1 hora</option>
+            <option value="10080">7 días</option><option value="43200">30 días</option>
+            <option value="0">Permanente</option>
+          </select>
+        </label>
+        <label class="field grow"><span>Motivo (opcional)</span><input name="reason" maxlength="200" /></label>
+        <label class="check"><input type="checkbox" name="ipv6_64" /> IPv6: bloquear todo su /64</label>
+        <button class="btn primary" type="submit">Añadir</button>
+      </form>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Tipo</th><th>Valor</th><th>Motivo</th><th>Origen</th><th>Expira</th><th></th></tr></thead>
+          <tbody>
+            {blocks.map((b) => (
+              <tr class={isExpired(b.expires_at) ? 'expired' : ''}>
+                <td><span class="tag">{kindLabel[b.kind] ?? b.kind}</span></td>
+                <td><code>{b.value}</code></td>
+                <td class="muted">{b.reason ?? '—'}</td>
+                <td class="muted">{b.source}</td>
+                <td class="muted">{b.expires_at ? (isExpired(b.expires_at) ? 'caducada' : fmt(b.expires_at)) : 'permanente'}</td>
+                <td class="right"><button class="btn-sm danger" data-act="rm-block" data-id={b.id}>Quitar</button></td>
+              </tr>
+            ))}
+            {blocks.length === 0 && <tr><td colspan="6" class="empty">Sin entradas.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Lista blanca -->
+    <section id="lista-blanca" class="card">
+      <h2>Lista blanca</h2>
+      <p class="muted">Siempre gana a la lista de bloqueo y al modo mantenimiento.</p>
+      <form data-form="allow" class="form-grid">
+        <label class="field"><span>Tipo</span>
+          <select name="kind"><option value="ip">IP</option><option value="cidr">Rango CIDR</option><option value="asn">ASN</option><option value="country">País (ISO 2)</option></select>
+        </label>
+        <label class="field grow"><span>Valor</span><input name="value" required autocomplete="off" /></label>
+        <label class="field grow"><span>Nota (opcional)</span><input name="note" maxlength="200" /></label>
+        <button class="btn primary" type="submit">Añadir</button>
+      </form>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Tipo</th><th>Valor</th><th>Nota</th><th>Alta</th><th></th></tr></thead>
+          <tbody>
+            {allows.map((a) => (
+              <tr>
+                <td><span class="tag">{kindLabel[a.kind] ?? a.kind}</span></td>
+                <td><code>{a.value}</code></td>
+                <td class="muted">{a.note ?? '—'}</td>
+                <td class="muted">{fmt(a.created_at)}</td>
+                <td class="right"><button class="btn-sm danger" data-act="rm-allow" data-id={a.id}>Quitar</button></td>
+              </tr>
+            ))}
+            {allows.length === 0 && <tr><td colspan="5" class="empty">Sin entradas.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Reglas de frecuencia -->
+    <section id="reglas" class="card">
+      <h2>Reglas de frecuencia</h2>
+      <p class="muted">«X visitas cada Y segundos». En niveles 0–1 solo <strong>marcan</strong>; en nivel 2 las de <em>IP</em> y <em>ASN</em> responden 429 (y, con baneo, añaden la IP a la lista durante unos minutos). Las reglas de <em>UA</em> y <em>global</em> solo avisan, nunca bloquean. Los buscadores verificados (Google, Bing, Apple) quedan exentos.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Regla</th><th>Ámbito</th><th>Ruta</th><th class="num">Límite</th><th>Acción</th><th>Activa</th><th></th></tr></thead>
+          <tbody>
+            {rules.map((r) => (
+              <tr data-rule={JSON.stringify(r)} class={r.enabled ? '' : 'expired'}>
+                <td>{r.name}</td>
+                <td><span class="tag">{scopeLabel[r.scope] ?? r.scope}</span></td>
+                <td><code>{r.path_pattern}</code></td>
+                <td class="num">{r.max_hits} / {r.window_s} s</td>
+                <td class="muted">{actionLabel[r.action] ?? r.action}{r.action === 'ban' ? ` ${r.ban_minutes} min` : ''}</td>
+                <td><input type="checkbox" data-toggle-rule={r.id} checked={!!r.enabled} aria-label="Regla activa" /></td>
+                <td class="right actions">
+                  <button class="btn-sm" data-act="rule-edit">Editar</button>
+                  <button class="btn-sm danger" data-act="rule-delete" data-id={r.id}>Borrar</button>
+                </td>
+              </tr>
+            ))}
+            {rules.length === 0 && (
+              <tr><td colspan="7" class="empty">Sin reglas. <button class="btn-sm" data-act="rules-defaults">Crear las 3 por defecto</button></td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <form data-form="rule" class="form-grid rule-form">
+        <input type="hidden" name="id" />
+        <label class="field grow"><span id="rule-form-title">Nueva regla</span><input name="name" required maxlength="60" placeholder="Nombre, p. ej. Ráfaga por IP" /></label>
+        <label class="field"><span>Ámbito</span>
+          <select name="scope"><option value="ip">Por IP</option><option value="ua">Mismo UA</option><option value="asn">Por ASN</option><option value="global">Global</option></select>
+        </label>
+        <label class="field"><span>Ruta</span><input name="path_pattern" value="/blog/*" required maxlength="100" /></label>
+        <label class="field narrow"><span>Visitas</span><input name="max_hits" type="number" min="1" max="100000" value="30" required /></label>
+        <label class="field narrow"><span>Ventana (s)</span><input name="window_s" type="number" min="5" max="3600" value="60" required /></label>
+        <label class="field"><span>Acción</span>
+          <select name="action"><option value="flag">Marcar</option><option value="limit">429</option><option value="ban">429 + baneo</option></select>
+        </label>
+        <label class="field narrow"><span>Baneo (min)</span><input name="ban_minutes" type="number" min="1" max="10080" value="15" /></label>
+        <button class="btn primary" type="submit">Guardar regla</button>
+        <button class="btn" type="button" data-act="rule-cancel" id="rule-cancel" hidden>Cancelar</button>
+      </form>
+    </section>
+
+    <!-- Auto-baneo -->
+    <section id="autoban" class="card">
+      <h2>Auto-baneo de reincidentes</h2>
+      <p class="muted">Cuando una IP acumula visitas clasificadas como bot (puntuación ≥ {AUTOBAN_DEFAULTS.minScore}), se crea una entrada automática con caducidad. En niveles 0–1 solo marca; en nivel 2 bloquea. No cuenta a los bots que se declaran (Googlebot, GPTBot…), a los buscadores verificados ni a la lista blanca. Entradas automáticas vigentes: <strong>{autoEntries}</strong> (máximo {AUTOBAN_DEFAULTS.maxAutoEntries}).</p>
+      <form data-form="autoban" class="form-grid">
+        <label class="check"><input type="checkbox" name="enabled" checked={autoBan.enabled} /> Activado</label>
+        <label class="field narrow"><span>Visitas bot</span><input name="hits" type="number" min="2" max="100" value={autoBan.hits} required /></label>
+        <label class="field narrow"><span>En (min)</span><input name="window_min" type="number" min="1" max="1440" value={autoBan.windowMin} required /></label>
+        <label class="field narrow"><span>Ban (horas)</span><input name="hours" type="number" min="1" max="8760" value={autoBan.hours} required /></label>
+        <button class="btn primary" type="submit">Guardar</button>
+      </form>
+    </section>
+
+    <!-- Alertas de Telegram -->
+    <section id="alertas" class="card">
+      <h2>Alertas por Telegram</h2>
+      <p class="muted">Avisos de ataque con botones para subir de nivel, activar el mantenimiento o bloquear la IP desde el móvil. Sin cron: se disparan cuando llega tráfico. Un solo aviso de cada tipo dentro del tiempo de espera.</p>
+
+      {!tgConfigured && (
+        <div class="notice warn">Faltan los secrets <code>TELEGRAM_BOT_TOKEN</code> y/o <code>TELEGRAM_CHAT_ID</code> en Cloudflare Pages: sin ellos no se envía nada.</div>
+      )}
+      {tgConfigured && !tgWebhookSecret && (
+        <div class="notice warn">Falta el secret <code>TELEGRAM_WEBHOOK_SECRET</code>: las alertas se enviarán, pero <strong>los botones no funcionarán</strong> hasta configurarlo y registrar el webhook.</div>
+      )}
+      {telegramMuted && (
+        <div class="notice warn">Telegram está silenciado con el botón «Telegram ✗» del panel principal: no se enviará ninguna alerta mientras siga así.</div>
+      )}
+
+      <form data-form="alerts" class="form-grid">
+        <label class="check"><input type="checkbox" name="enabled" checked={alerts.enabled} /> Alertas activas</label>
+        <label class="field narrow"><span>Ráfaga (visitas/60 s)</span><input name="ip_per_min" type="number" min="5" max="10000" value={alerts.ipPerMin} required /></label>
+        <label class="field narrow"><span>Oleada (bots/5 min)</span><input name="wave_5min" type="number" min="5" max="100000" value={alerts.wave5min} required /></label>
+        <label class="field narrow"><span>Espera (min)</span><input name="cooldown_min" type="number" min="1" max="1440" value={alerts.cooldownMin} required /></label>
+        <label class="check"><input type="checkbox" name="auto_escalate" checked={alerts.autoEscalate} /> Escalar solo a Vigilancia (nivel 1) al saltar una alerta</label>
+        <label class="check"><input type="checkbox" name="notify_changes" checked={alerts.notifyChanges} /> Avisar de cambios de nivel hechos desde el panel</label>
+        <button class="btn primary" type="submit">Guardar</button>
+      </form>
+
+      <div class="row">
+        <button class="btn" data-act="tg-test" disabled={!tgConfigured}>Enviar alerta de prueba</button>
+        <button class="btn" data-act="tg-register" disabled={!tgConfigured || !tgWebhookSecret}>Registrar webhook</button>
+        <button class="btn" data-act="tg-info" disabled={!tgConfigured}>Comprobar webhook</button>
+      </div>
+      <p class="muted small" id="tg-status" style="margin:.8rem 0 0"></p>
+    </section>
+
+    <!-- Actividad -->
+    <section id="actividad" class="card">
+      <h2>Actividad (últimas 24 h)</h2>
+      <div class="bars" aria-label="Acciones de defensa por hora">
+        {hours.map((h) => (
+          <div class="bar-col" title={`${h.label}: ${h.flagged} marcadas · ${h.blocked} bloqueadas · ${h.maint} en mantenimiento`}>
+            <div class="bar" style={`height:${Math.max(2, Math.round((h.total / maxHour) * 100))}%`}></div>
+          </div>
+        ))}
+      </div>
+      <p class="muted small">Cada barra es una hora (UTC). Solo cuenta lo que gestiona el módulo de defensa.</p>
+
+      <h3>Uso estimado de cuota gratuita (24 h)</h3>
+      <div class="quota">
+        {quotaRows.map((q) => (
+          <div class="quota-row">
+            <div class="quota-head"><span>{q.label}</span><span class="muted small">{q.value === null ? 'sin datos (¿falta la migración 0002?)' : `≈ ${q.value.toLocaleString('es-ES')} de ${q.limit.toLocaleString('es-ES')} (${q.pct} %)`}</span></div>
+            <div class="quota-bar"><div class={`quota-fill ${q.tone}`} style={`width:${q.pct ?? 0}%`}></div></div>
+            <span class="muted small">{q.note}</span>
+          </div>
+        ))}
+      </div>
+
+      <h3>IPs más activas</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>IP</th><th>País</th><th class="num">Visitas</th><th class="num">Bot</th><th></th></tr></thead>
+          <tbody>
+            {topIps.map((r) => (
+              <tr>
+                <td><code>{r.ip}</code></td>
+                <td class="muted">{r.country ?? '—'}</td>
+                <td class="num">{r.n}</td>
+                <td class="num">{r.bots ?? 0}</td>
+                <td class="right actions">
+                  <button class="btn-sm" data-act="quick-allow" data-ip={r.ip}>Permitir</button>
+                  <button class="btn-sm danger" data-act="quick-block" data-ip={r.ip}>Bloquear</button>
+                </td>
+              </tr>
+            ))}
+            {topIps.length === 0 && <tr><td colspan="5" class="empty">Sin visitas en las últimas 24 h.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Mantenimiento de datos -->
+    <section id="datos" class="card">
+      <h2>Mantenimiento de datos</h2>
+      <p class="muted">Retención: visitas de bots {RETENTION.botViewsDays} días, visitas humanas {Math.round(RETENTION.humanViewsDays / 30.4)} meses (las estadísticas usan 12), IPs del honeypot {RETENTION.botIpsDays} días, eventos {RETENTION.eventsDays} días. El borrado es irreversible: exporta antes desde <a href="/panel">Panel → Exportar datos</a> si quieres conservarlo.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Se borraría ahora</th><th class="num">Filas</th></tr></thead>
+          <tbody>
+            <tr><td>Visitas de bots de más de {RETENTION.botViewsDays} días</td><td class="num">{purgeCounts.botViews}</td></tr>
+            <tr><td>Visitas humanas de más de ~13 meses</td><td class="num">{purgeCounts.humanViews}</td></tr>
+            <tr><td>IPs del honeypot antiguas</td><td class="num">{purgeCounts.botIps}</td></tr>
+            <tr><td>Eventos de defensa y contadores horarios antiguos</td><td class="num">{purgeCounts.events + purgeCounts.hourly}</td></tr>
+            <tr><td>Bloqueos caducados hace más de {RETENTION.expiredBlocksDays} días</td><td class="num">{purgeCounts.expiredBlocks}</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="row" style="margin-top:1rem">
+        <button class="btn danger" data-act="purge-now" disabled={purgeTotal === 0}>Limpiar ahora ({purgeTotal})</button>
+        <span class="muted small">Máx. {RETENTION.maxRowsPerTable.toLocaleString('es-ES')} filas por tabla y ejecución; si quedan más, vuelve a pulsar.</span>
+      </div>
+      <label class="switch-row">
+        <input type="checkbox" id="autopurge-toggle" checked={autoPurge} />
+        <span><strong>Poda automática diaria</strong> — borra lo anterior una vez al día, sin avisar, aprovechando una visita al sitio (sin cron). Desactivada por defecto.{lastPurge ? ` Última ejecución: ${lastPurge}.` : ''}</span>
+      </label>
+    </section>
+
+    <!-- Eventos -->
+    <section id="eventos" class="card">
+      <h2>Registro de eventos</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Cuándo</th><th>Tipo</th><th>Detalle</th><th>Desde</th></tr></thead>
+          <tbody>
+            {events.map((e) => (
+              <tr><td class="muted">{fmt(e.ts)}</td><td><span class="tag">{e.type}</span></td><td>{e.detail}</td><td class="muted"><code>{e.ip ?? '—'}</code></td></tr>
+            ))}
+            {events.length === 0 && <tr><td colspan="4" class="empty">Aún no hay eventos.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  </main>
+</Panel>
+
+<script>
+  const toast = document.getElementById('toast') as HTMLElement;
+
+  function showToast(msg: string, ok = true) {
+    toast.textContent = msg;
+    toast.className = `toast show ${ok ? 'ok' : 'err'}`;
+    setTimeout(() => (toast.className = 'toast'), 3500);
+  }
+
+  // La hora estimada se guarda en UTC; aquí se muestra en la zona horaria del navegador.
+  const etaInput = document.getElementById('maint-eta') as HTMLInputElement | null;
+  if (etaInput?.dataset.iso) {
+    const d = new Date(etaInput.dataset.iso);
+    if (!isNaN(d.getTime())) {
+      const pad = (n: number) => String(n).padStart(2, '0');
+      etaInput.value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+  }
+
+  // Toast pendiente tras recargar
+  const pending = sessionStorage.getItem('defToast');
+  if (pending) { sessionStorage.removeItem('defToast'); showToast(pending); }
+
+  async function api(action: string, data: Record<string, unknown> = {}): Promise<any> {
+    const res = await fetch('/api/panel/defense', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, ...data }),
+    });
+    const j = await res.json().catch(() => ({ ok: false, error: 'Respuesta inválida del servidor' }));
+    return { status: res.status, ...j };
+  }
+
+  function setTgStatus(msg: string) {
+    const el = document.getElementById('tg-status');
+    if (el) el.textContent = msg;
+  }
+  async function tgCall(action: string, wait: string): Promise<any> {
+    setTgStatus(wait);
+    const r = await api(action);
+    if (!r.ok) { setTgStatus(`❌ ${r.error ?? 'Error'}`); showToast(r.error ?? 'Error', false); }
+    return r;
+  }
+
+  async function run(action: string, data: Record<string, unknown>, okMsg: string, confirmMsg?: string) {
+    if (confirmMsg && !confirm(confirmMsg)) return;
+    let r = await api(action, data);
+    if (r.needsForce && confirm(r.error + '\n\n¿Añadir de todos modos?')) {
+      r = await api(action, { ...data, force: true });
+    }
+    if (r.ok) {
+      sessionStorage.setItem('defToast', okMsg);
+      location.reload();
+    } else {
+      showToast(r.error ?? 'Error', false);
+    }
+  }
+
+  document.addEventListener('click', (e) => {
+    const t = (e.target as HTMLElement).closest('[data-act]') as HTMLElement | null;
+    if (!t) return;
+    const act = t.dataset.act;
+
+    if (act === 'level') {
+      const n = Number(t.dataset.level);
+      const warn =
+        n === 2 ? 'Nivel 2: las entradas de la lista de bloqueo recibirán un 403. ¿Continuar?'
+        : n === 3 ? 'Nivel 3: TODO el sitio público mostrará la página de mantenimiento. ¿Continuar?'
+        : undefined;
+      run('set_level', { level: n }, `Nivel ${n} aplicado`, warn);
+    } else if (act === 'maint-on') {
+      const msg = (document.getElementById('maint-message') as HTMLTextAreaElement).value;
+      const etaEl = document.getElementById('maint-eta') as HTMLInputElement;
+      const eta = etaEl.value ? new Date(etaEl.value).toISOString() : '';
+      run('set_maintenance', { on: true, message: msg, eta }, 'Mantenimiento activado', 'El sitio público mostrará la página de mantenimiento. ¿Activar?');
+    } else if (act === 'maint-off') {
+      run('set_maintenance', { on: false }, 'Mantenimiento desactivado');
+    } else if (act === 'allow-me') {
+      run('add_allow', { kind: 'ip', value: t.dataset.ip, note: 'Mi conexión (admin)' }, 'IP añadida a la lista blanca');
+    } else if (act === 'quick-allow') {
+      run('add_allow', { kind: 'ip', value: t.dataset.ip, note: 'Desde top IPs' }, 'IP añadida a la lista blanca');
+    } else if (act === 'quick-block') {
+      const ip = t.dataset.ip!;
+      run('add_block', { kind: 'ip', value: ip, duration_min: 1440, reason: 'Desde top IPs', ipv6_64: ip.includes(':') }, 'IP añadida a la lista de bloqueo (24 h)');
+    } else if (act === 'rm-block') {
+      run('remove_block', { id: Number(t.dataset.id) }, 'Entrada eliminada', '¿Quitar esta entrada de la lista de bloqueo?');
+    } else if (act === 'rm-allow') {
+      run('remove_allow', { id: Number(t.dataset.id) }, 'Entrada eliminada', '¿Quitar esta entrada de la lista blanca?');
+    } else if (act === 'tg-test') {
+      tgCall('telegram_test', 'Enviando…').then((r) => { if (r.ok) setTgStatus('✅ Mensaje de prueba enviado: revisa Telegram.'); });
+    } else if (act === 'tg-register') {
+      tgCall('telegram_set_webhook', 'Registrando…').then((r) => { if (r.ok) setTgStatus(`✅ Webhook registrado en ${r.url}`); });
+    } else if (act === 'tg-info') {
+      tgCall('telegram_webhook_info', 'Consultando…').then((r) => {
+        if (!r.ok) return;
+        const parts = [r.url ? `URL: ${r.url}` : 'Sin webhook registrado', `pendientes: ${r.pending}`];
+        if (r.lastError) parts.push(`último error: ${r.lastError}`);
+        setTgStatus(parts.join(' · '));
+      });
+    } else if (act === 'rule-edit') {
+      const r = JSON.parse((t.closest('tr') as HTMLElement).dataset.rule ?? '{}');
+      const f = document.querySelector('form[data-form="rule"]') as HTMLFormElement;
+      (f.elements.namedItem('id') as HTMLInputElement).value = r.id;
+      (f.elements.namedItem('name') as HTMLInputElement).value = r.name;
+      (f.elements.namedItem('scope') as HTMLSelectElement).value = r.scope;
+      (f.elements.namedItem('path_pattern') as HTMLInputElement).value = r.path_pattern;
+      (f.elements.namedItem('max_hits') as HTMLInputElement).value = r.max_hits;
+      (f.elements.namedItem('window_s') as HTMLInputElement).value = r.window_s;
+      (f.elements.namedItem('action') as HTMLSelectElement).value = r.action;
+      (f.elements.namedItem('ban_minutes') as HTMLInputElement).value = r.ban_minutes;
+      document.getElementById('rule-form-title')!.textContent = `Editando regla #${r.id}`;
+      (document.getElementById('rule-cancel') as HTMLElement).hidden = false;
+      f.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else if (act === 'rule-cancel') {
+      location.reload();
+    } else if (act === 'rule-delete') {
+      run('rule_delete', { id: Number(t.dataset.id) }, 'Regla eliminada', '¿Borrar esta regla?');
+    } else if (act === 'rules-defaults') {
+      run('rules_defaults', {}, 'Reglas por defecto creadas');
+    } else if (act === 'purge-now') {
+      if (!confirm('Se borrarán definitivamente los datos antiguos listados. ¿Continuar?')) return;
+      api('purge_now').then((r) => {
+        if (r.ok) { sessionStorage.setItem('defToast', 'Poda realizada'); location.reload(); }
+        else showToast(r.error ?? 'Error', false);
+      });
+    }
+  });
+
+  document.addEventListener('submit', (e) => {
+    const form = (e.target as HTMLElement).closest('form[data-form]') as HTMLFormElement | null;
+    if (!form) return;
+    e.preventDefault();
+    const fd = new FormData(form);
+    if (form.dataset.form === 'rule') {
+      const idRaw = fd.get('id');
+      run('rule_save', {
+        id: idRaw ? Number(idRaw) : undefined, name: fd.get('name'), scope: fd.get('scope'),
+        path_pattern: fd.get('path_pattern'), max_hits: Number(fd.get('max_hits')),
+        window_s: Number(fd.get('window_s')), rule_action: fd.get('action'), ban_minutes: Number(fd.get('ban_minutes') || 15),
+      }, 'Regla guardada');
+    } else if (form.dataset.form === 'alerts') {
+      run('set_alerts', {
+        enabled: fd.get('enabled') === 'on', ip_per_min: Number(fd.get('ip_per_min')),
+        wave_5min: Number(fd.get('wave_5min')), cooldown_min: Number(fd.get('cooldown_min')),
+        auto_escalate: fd.get('auto_escalate') === 'on', notify_changes: fd.get('notify_changes') === 'on',
+      }, 'Alertas guardadas');
+    } else if (form.dataset.form === 'autoban') {
+      run('set_autoban', {
+        enabled: fd.get('enabled') === 'on', hits: Number(fd.get('hits')),
+        window_min: Number(fd.get('window_min')), hours: Number(fd.get('hours')),
+      }, 'Auto-baneo guardado');
+    } else if (form.dataset.form === 'block') {
+      run('add_block', {
+        kind: fd.get('kind'), value: fd.get('value'), reason: fd.get('reason'),
+        duration_min: Number(fd.get('duration_min')), ipv6_64: fd.get('ipv6_64') === 'on',
+      }, 'Entrada añadida a la lista de bloqueo');
+    } else {
+      run('add_allow', { kind: fd.get('kind'), value: fd.get('value'), note: fd.get('note') }, 'Entrada añadida a la lista blanca');
+    }
+  });
+
+  document.getElementById('enabled-toggle')?.addEventListener('change', (e) => {
+    const on = (e.target as HTMLInputElement).checked;
+    run('set_enabled', { enabled: on }, on ? 'Defensa activada' : 'Defensa desactivada');
+  });
+
+  document.getElementById('lite-toggle')?.addEventListener('change', (e) => {
+    const on = (e.target as HTMLInputElement).checked;
+    run('set_lite', { enabled: on }, on ? 'Modo lite activado' : 'Modo lite desactivado');
+  });
+  document.getElementById('autopurge-toggle')?.addEventListener('change', (e) => {
+    const on = (e.target as HTMLInputElement).checked;
+    if (on && !confirm('La poda automática borrará datos antiguos cada día sin avisar. ¿Activarla?')) { (e.target as HTMLInputElement).checked = false; return; }
+    run('set_auto_purge', { enabled: on }, on ? 'Poda automática activada' : 'Poda automática desactivada');
+  });
+  document.querySelectorAll<HTMLInputElement>('input[data-toggle-rule]').forEach((el) => {
+    el.addEventListener('change', () => run('rule_toggle', { id: Number(el.dataset.toggleRule), enabled: el.checked }, el.checked ? 'Regla activada' : 'Regla desactivada'));
+  });
+</script>
+
+<style>
+  main { max-width: 920px; margin: 0 auto; padding: 2rem 1.5rem 5rem; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
+  .topbar-actions { display: flex; gap: .6rem; align-items: center; }
+  h1 { font-family: var(--font-display); font-size: 2rem; font-weight: 400; letter-spacing: -0.02em; margin: .2rem 0 0; }
+  h2 { font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--color-muted); margin: 0 0 1rem; }
+  h3 { font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--color-muted); margin: 1.6rem 0 .6rem; }
+  code { font-size: .82rem; background: var(--color-row-hover); padding: .1rem .35rem; border-radius: 4px; word-break: break-all; }
+  .muted { color: var(--color-muted); }
+  .small { font-size: .8rem; }
+  .lag { font-size: .8rem; color: var(--color-muted); margin: 0 0 1.5rem; }
+
+  .chip { font-size: .78rem; font-weight: 600; padding: .3rem .8rem; border-radius: 99px; }
+  .lv-0 { --lv-bg:#d1fae5; --lv-fg:#065f46; --lv-bd:#6ee7b7; }
+  .lv-1 { --lv-bg:#e0f2fe; --lv-fg:#075985; --lv-bd:#7dd3fc; }
+  .lv-2 { --lv-bg:#fef3c7; --lv-fg:#92400e; --lv-bd:#fcd34d; }
+  .lv-3 { --lv-bg:#fee2e2; --lv-fg:#991b1b; --lv-bd:#fca5a5; }
+  html[data-theme='dark'] .lv-0 { --lv-bg:#064e3b; --lv-fg:#6ee7b7; --lv-bd:#065f46; }
+  html[data-theme='dark'] .lv-1 { --lv-bg:#0c2a3e; --lv-fg:#38bdf8; --lv-bd:#0c4a6e; }
+  html[data-theme='dark'] .lv-2 { --lv-bg:#451a03; --lv-fg:#fcd34d; --lv-bd:#78350f; }
+  html[data-theme='dark'] .lv-3 { --lv-bg:#450a0a; --lv-fg:#fca5a5; --lv-bd:#7f1d1d; }
+  .chip { background: var(--lv-bg); color: var(--lv-fg); }
+
+
+  .notice { padding: .9rem 1.1rem; border-radius: 8px; font-size: .88rem; margin-bottom: 1rem; line-height: 1.6; }
+  .notice.warn { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+  html[data-theme='dark'] .notice.warn { background: #451a03; color: #fcd34d; border-color: #78350f; }
+  .notice code { display: block; margin-top: .4rem; background: rgba(0,0,0,.08); }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .75rem; margin-bottom: 1.25rem; }
+  .stat { border: 1px solid var(--color-border); border-radius: 10px; padding: .9rem 1rem; display: flex; flex-direction: column; gap: .2rem; }
+  .stat-n { font-family: var(--font-display); font-size: 1.7rem; line-height: 1; }
+  .stat-l { font-size: .74rem; color: var(--color-muted); }
+
+  .card { scroll-margin-top: 1rem; border: 1px solid var(--color-border); border-radius: 12px; padding: 1.4rem 1.5rem; margin-bottom: 1.25rem; }
+  .card-alert { border-color: #fca5a5; box-shadow: 0 0 0 3px rgba(220,38,38,.08); }
+  .card > p { margin: 0 0 1rem; font-size: .88rem; line-height: 1.6; }
+
+  .levels { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: .75rem; margin-bottom: 1.2rem; }
+  .level { text-align: left; font-family: inherit; color: var(--color-text); background: transparent; cursor: pointer;
+           border: 1px solid var(--color-border); border-radius: 10px; padding: .95rem 1rem; display: flex; flex-direction: column; gap: .25rem;
+           transition: border-color .15s, background .15s, transform .15s; }
+  .level:hover { border-color: var(--color-text); transform: translateY(-1px); }
+  .level.active { background: var(--lv-bg); border-color: var(--lv-bd); box-shadow: 0 0 0 2px var(--lv-bd) inset; }
+  .level-n { font-size: .7rem; font-weight: 700; color: var(--lv-fg); text-transform: uppercase; letter-spacing: .06em; }
+  .level-n::before { content: 'Nivel '; }
+  .level-name { font-family: var(--font-display); font-size: 1.25rem; }
+  .level-short { font-size: .8rem; font-weight: 600; color: var(--lv-fg); }
+  .level-desc { font-size: .78rem; color: var(--color-muted); line-height: 1.5; margin-top: .25rem; }
+  .level.active .level-desc { color: var(--color-text); }
+
+  .switch-row { display: flex; gap: .7rem; align-items: flex-start; font-size: .85rem; line-height: 1.5; color: var(--color-muted); padding-top: 1rem; border-top: 1px solid var(--color-border); }
+  .switch-row input { margin-top: .25rem; accent-color: var(--color-text); }
+  .switch-row strong { color: var(--color-text); }
+
+  .form-grid { display: flex; flex-wrap: wrap; gap: .75rem; align-items: flex-end; margin-bottom: 1.2rem; }
+  .field { display: flex; flex-direction: column; gap: .3rem; font-size: .7rem; text-transform: uppercase; letter-spacing: .04em; color: var(--color-muted); }
+  .field.grow { flex: 1 1 180px; }
+  .field.wide { flex: 1 1 100%; }
+  .field.narrow { width: 6.5rem; }
+  .rule-form { margin: 1.4rem 0 0; padding-top: 1.2rem; border-top: 1px solid var(--color-border); }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+  .field input, .field select, .field textarea {
+    font: inherit; font-size: .88rem; text-transform: none; letter-spacing: 0; color: var(--color-text);
+    background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 6px; padding: .5rem .65rem; width: 100%;
+  }
+  .field textarea { resize: vertical; }
+  .field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--color-text); }
+  .check { display: flex; align-items: center; gap: .4rem; font-size: .8rem; color: var(--color-muted); padding-bottom: .55rem; }
+  .check input { accent-color: var(--color-text); }
+
+  .row { display: flex; gap: .8rem; align-items: center; flex-wrap: wrap; }
+  .ip { font-size: .95rem; padding: .3rem .6rem; }
+
+  .btn { font: inherit; font-size: .85rem; padding: .5rem 1rem; border-radius: 6px; cursor: pointer;
+         background: transparent; color: var(--color-text); border: 1px solid var(--color-border); transition: opacity .15s, border-color .15s; }
+  .btn:hover { border-color: var(--color-text); }
+  .btn.primary { background: var(--color-text); color: var(--color-bg); border-color: var(--color-text); }
+  .btn.primary:hover { opacity: .8; }
+  .btn.danger { color: #dc2626; border-color: #fca5a5; }
+  .btn.danger:hover { background: #fee2e2; }
+  html[data-theme='dark'] .btn.danger { color: #f87171; border-color: #7f1d1d; }
+  html[data-theme='dark'] .btn.danger:hover { background: #2d0a0a; }
+  .btn-sm { font: inherit; font-size: .76rem; padding: .25rem .6rem; border-radius: 5px; cursor: pointer; background: transparent; color: var(--color-text); border: 1px solid var(--color-border); }
+  .btn-sm:hover { border-color: var(--color-text); }
+  .btn-sm.danger { color: #dc2626; border-color: #fca5a5; }
+  .btn-sm.danger:hover { background: #fee2e2; }
+  html[data-theme='dark'] .btn-sm.danger { color: #f87171; border-color: #7f1d1d; }
+  html[data-theme='dark'] .btn-sm.danger:hover { background: #2d0a0a; }
+
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+  th { text-align: left; font-weight: 500; padding: .6rem .7rem; border-bottom: 2px solid var(--color-border); color: var(--color-muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; white-space: nowrap; }
+  td { padding: .65rem .7rem; border-bottom: 1px solid var(--color-border); vertical-align: middle; }
+  tr:hover td { background: var(--color-row-hover); }
+  tr.expired td { opacity: .5; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .right { text-align: right; white-space: nowrap; }
+  .actions { display: flex; gap: .35rem; justify-content: flex-end; }
+  .empty { color: var(--color-muted); padding: 1.4rem .7rem; }
+  .tag { font-size: .7rem; font-weight: 600; padding: .15rem .5rem; border-radius: 99px; background: var(--color-row-hover); color: var(--color-muted); }
+
+  .bars { display: flex; align-items: flex-end; gap: 3px; height: 90px; padding: .4rem 0; border-bottom: 1px solid var(--color-border); }
+  .bar-col { flex: 1; height: 100%; display: flex; align-items: flex-end; }
+  .bar { width: 100%; background: var(--color-text); opacity: .75; border-radius: 3px 3px 0 0; min-height: 2px; }
+  .bar-col:hover .bar { opacity: 1; }
+
+  .quota { display: grid; gap: 1rem; }
+  .quota-row { display: grid; gap: .35rem; }
+  .quota-head { display: flex; justify-content: space-between; gap: 1rem; font-size: .85rem; flex-wrap: wrap; }
+  .quota-bar { height: 8px; border-radius: 99px; background: var(--color-row-hover); overflow: hidden; }
+  .quota-fill { height: 100%; border-radius: 99px; background: #16a34a; min-width: 2px; }
+  .quota-fill.mid { background: #d97706; }
+  .quota-fill.hi { background: #dc2626; }
+
+  .toast { position: fixed; left: 50%; bottom: 1.5rem; transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
+           padding: .7rem 1.2rem; border-radius: 8px; font-size: .88rem; background: var(--color-text); color: var(--color-bg);
+           transition: opacity .2s, transform .2s; z-index: 50; max-width: 90vw; }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .toast.err { background: #dc2626; color: #fff; }
+</style>

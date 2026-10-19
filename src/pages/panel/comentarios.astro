@@ -1,5 +1,5 @@
 ---
-import Base from '../../layouts/Base.astro';
+import Panel from '../../layouts/Panel.astro';
 
 const db = Astro.locals.runtime?.env?.DB;
 let pendientes: any[] = [];
@@ -17,14 +17,10 @@ if (db) {
   aprobados = resAprobados.results ?? [];
 }
 ---
-<Base title="Comentarios — Panel">
+<Panel title="Comentarios — Panel" active="comentarios">
   <main>
     <div class="topbar">
       <h1>Comentarios</h1>
-      <a href="/panel" class="btn-back">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><line x1="19" x2="5" y1="12" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
-        Panel
-      </a>
     </div>
 
     <section>
@@ -78,7 +74,7 @@ if (db) {
       ))}
     </section>
   </main>
-</Base>
+</Panel>
 
 <script>
   async function moderar(id: number, accion: string) {

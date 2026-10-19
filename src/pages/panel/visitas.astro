@@ -1,5 +1,5 @@
 ---
-import Base from '../../layouts/Base.astro';
+import Panel from '../../layouts/Panel.astro';
 
 const db = Astro.locals.runtime?.env?.DB;
 
@@ -67,14 +67,10 @@ const countryNames: Record<string, string> = {
   NL: '🇳🇱 NL', PL: '🇵🇱 PL', SE: '🇸🇪 SE', CL: '🇨🇱 CL',
 };
 ---
-<Base title="Visitas detalladas — Panel">
+<Panel title="Visitas detalladas — Panel" active="visitas">
   <main>
     <div class="topbar">
       <h1>Visitas detalladas</h1>
-      <a href="/panel" class="btn-back">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><line x1="19" x2="5" y1="12" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
-        Panel
-      </a>
     </div>
 
     <!-- Filtros -->
@@ -172,7 +168,7 @@ const countryNames: Record<string, string> = {
     if (timeEl) timeEl.textContent = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
   });
 </script>
-</Base>
+</Panel>
 
 <style>
   main { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
