@@ -1,0 +1,286 @@
+---
+// Layout del panel de administración: barra lateral con la navegación agrupada,
+// estado de defensa y controles del sistema. Envuelve a Base (mismas variables
+// de color, tipografías y modo oscuro que el resto del blog).
+import Base from './Base.astro';
+
+interface Props {
+  title: string;
+  /** Sección activa: posts | comentarios | mensajes | stats | visitas | defensa */
+  active: string;
+}
+const { title, active } = Astro.props;
+
+const db = Astro.locals.runtime?.env?.DB;
+let pendientes = 0;
+let mensajes = 0;
+let level = 0;
+let defenseOn = true;
+let telegramEnabled = true;
+
+if (db) {
+  const guard = <T,>(p: Promise<T>, fb: T): Promise<T> => p.catch(() => fb);
+  const [rPend, rMsg, rSet] = await Promise.all([
+    guard(db.prepare(`SELECT COUNT(*) AS n FROM comments WHERE estado = 'pendiente'`).first(), null as any),
+    guard(db.prepare(`SELECT COUNT(*) AS n FROM submissions WHERE revisado = 0`).first(), null as any),
+    guard(db.prepare(`SELECT key, value FROM settings WHERE key IN ('defense_level','defense_enabled','telegram_enabled')`).all(), { results: [] } as any),
+  ]);
+  pendientes = (rPend as any)?.n ?? 0;
+  mensajes = (rMsg as any)?.n ?? 0;
+  for (const r of (rSet.results ?? []) as any[]) {
+    if (r.key === 'defense_level') { const n = parseInt(String(r.value), 10); level = n >= 0 && n <= 3 ? n : 0; }
+    if (r.key === 'defense_enabled') defenseOn = String(r.value) !== '0';
+    if (r.key === 'telegram_enabled') telegramEnabled = String(r.value) !== '0';
+  }
+}
+
+const levelNames = ['Normal', 'Vigilancia', 'Defensa', 'Mantenimiento'];
+const defenseLabel = defenseOn ? `Nivel ${level}` : 'Apagada';
+const is = (k: string) => (active === k ? 'active' : '');
+---
+<Base title={title}>
+  <div class="shell" id="shell">
+    <!-- Barra superior (solo móvil) -->
+    <header class="mobilebar">
+      <button class="icon-btn" id="nav-open" aria-label="Abrir menú" aria-controls="sidebar" aria-expanded="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <span class="mobilebar-title">Panel</span>
+      <a href="/panel/defensa" class={`lvl-chip lv-${defenseOn ? level : 'off'}`}>{defenseLabel}</a>
+    </header>
+
+    <aside class="sidebar" id="sidebar" aria-label="Navegación del panel">
+      <a href="/panel" class="brand">
+        <span class="brand-name">Aitor Sánchez</span>
+        <span class="brand-sub">Panel de administración</span>
+      </a>
+
+      <nav>
+        <div class="group-label">Contenido</div>
+        <a href="/panel" class={`nav-item ${is('posts')}`}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          <span>Posts</span>
+        </a>
+        <a href="/panel/nuevo" class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>
+          <span>Nuevo post</span>
+        </a>
+        <a href="/panel/comentarios" class={`nav-item ${is('comentarios')}`}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <span>Comentarios</span>
+          {pendientes > 0 && <span class="badge">{pendientes}</span>}
+        </a>
+        <a href="/panel/mensajes" class={`nav-item ${is('mensajes')}`}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,12 2,6"/></svg>
+          <span>Mensajes</span>
+          {mensajes > 0 && <span class="badge">{mensajes}</span>}
+        </a>
+
+        <div class="group-label">Tráfico</div>
+        <a href="/panel/stats" class={`nav-item ${is('stats')}`}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" x2="18" y1="20" y2="10"/><line x1="12" x2="12" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="14"/></svg>
+          <span>Estadísticas</span>
+        </a>
+        <a href="/panel/visitas" class={`nav-item ${is('visitas')}`}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <span>Visitas</span>
+        </a>
+
+        <div class="group-label">Defensa</div>
+        <a href="/panel/defensa" class={`nav-item ${is('defensa')}`}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <span>Estado y niveles</span>
+          <span class={`lvl-chip small lv-${defenseOn ? level : 'off'}`} title={defenseOn ? levelNames[level] : 'Defensa desactivada'}>{defenseOn ? level : '—'}</span>
+        </a>
+        {active === 'defensa' && (
+          <div class="subnav">
+            <a href="#listas">IPs y rangos</a>
+            <a href="#reglas">Reglas</a>
+            <a href="#alertas">Alertas</a>
+            <a href="#actividad">Actividad</a>
+            <a href="#datos">Datos</a>
+            <a href="#eventos">Eventos</a>
+          </div>
+        )}
+
+        <div class="group-label">Sistema</div>
+        <a href="/panel#exportar" class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+          <span>Exportar datos</span>
+        </a>
+        <button class={`nav-item tg ${telegramEnabled ? 'tg-on' : 'tg-off'}`} id="telegram-toggle"
+          aria-pressed={telegramEnabled ? 'true' : 'false'}
+          aria-label={telegramEnabled ? 'Desactivar avisos de Telegram' : 'Activar avisos de Telegram'}
+          title={telegramEnabled ? 'Telegram: avisos activos' : 'Telegram: avisos desactivados'}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          <span id="telegram-label">{telegramEnabled ? 'Telegram ✓' : 'Telegram ✗'}</span>
+        </button>
+        <button class="nav-item" id="panel-theme-toggle" aria-label="Activar modo oscuro" aria-pressed="false">
+          <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+          <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          <span class="theme-label">Cambiar tema</span>
+        </button>
+        <a href="/blog" target="_blank" rel="noopener" class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" x2="21" y1="14" y2="3"/></svg>
+          <span>Ver blog</span>
+        </a>
+        <button class="nav-item danger" id="logout-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+          <span>Cerrar sesión</span>
+        </button>
+      </nav>
+    </aside>
+
+    <div class="scrim" id="scrim"></div>
+
+    <div class="panel-main">
+      <slot />
+    </div>
+  </div>
+</Base>
+
+<script>
+  const shell = document.getElementById('shell');
+  const openBtn = document.getElementById('nav-open');
+  const closeNav = () => { shell?.classList.remove('open'); openBtn?.setAttribute('aria-expanded', 'false'); };
+  openBtn?.addEventListener('click', () => {
+    const open = shell?.classList.toggle('open');
+    openBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+  document.getElementById('scrim')?.addEventListener('click', closeNav);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeNav(); });
+  document.querySelectorAll('#sidebar a').forEach((a) => a.addEventListener('click', closeNav));
+
+  // Cerrar sesión
+  async function cerrarSesion() {
+    await fetch('/api/panel/logout', { method: 'POST' });
+    window.location.href = '/panel/login';
+  }
+  (window as any).cerrarSesion = cerrarSesion;
+  document.getElementById('logout-btn')?.addEventListener('click', cerrarSesion);
+
+  // Avisos de Telegram (activar/desactivar)
+  const tgBtn = document.getElementById('telegram-toggle') as HTMLButtonElement | null;
+  const tgLabel = document.getElementById('telegram-label');
+  if (tgBtn && tgLabel) {
+    tgBtn.addEventListener('click', async () => {
+      tgBtn.disabled = true;
+      tgBtn.style.opacity = '0.5';
+      try {
+        const res = await fetch('/api/panel/telegram', { method: 'POST' });
+        if (!res.ok) throw new Error('Error del servidor');
+        const { enabled } = (await res.json()) as { enabled: boolean };
+        tgBtn.classList.toggle('tg-on', enabled);
+        tgBtn.classList.toggle('tg-off', !enabled);
+        tgBtn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+        tgBtn.setAttribute('aria-label', enabled ? 'Desactivar avisos de Telegram' : 'Activar avisos de Telegram');
+        tgBtn.title = enabled ? 'Telegram: avisos activos' : 'Telegram: avisos desactivados';
+        tgLabel.textContent = enabled ? 'Telegram ✓' : 'Telegram ✗';
+      } catch {
+        alert('No se pudo cambiar el estado de Telegram.');
+      } finally {
+        tgBtn.disabled = false;
+        tgBtn.style.opacity = '';
+      }
+    });
+  }
+
+  // Tema claro/oscuro (mismo almacenamiento que el resto del sitio)
+  const themeBtn = document.getElementById('panel-theme-toggle');
+  if (themeBtn) {
+    const label = themeBtn.querySelector('.theme-label');
+    const isDark = () => document.documentElement.getAttribute('data-theme') === 'dark';
+    const sync = () => {
+      themeBtn.setAttribute('aria-pressed', isDark() ? 'true' : 'false');
+      themeBtn.setAttribute('aria-label', isDark() ? 'Activar modo claro' : 'Activar modo oscuro');
+      if (label) label.textContent = isDark() ? 'Modo claro' : 'Modo oscuro';
+    };
+    sync();
+    themeBtn.addEventListener('click', () => {
+      if (isDark()) { document.documentElement.removeAttribute('data-theme'); localStorage.setItem('theme', 'light'); }
+      else { document.documentElement.setAttribute('data-theme', 'dark'); localStorage.setItem('theme', 'dark'); }
+      sync();
+    });
+  }
+</script>
+
+<style>
+  .shell { display: flex; min-height: 100vh; }
+
+  /* ── Barra lateral ─────────────────────────────────────────────────── */
+  .sidebar {
+    width: 248px; flex: 0 0 248px; position: sticky; top: 0; align-self: flex-start;
+    height: 100vh; overflow-y: auto; padding: 1.4rem 0.9rem 1.5rem;
+    border-right: 1px solid var(--color-border); background: var(--color-bg);
+  }
+  .brand { display: flex; flex-direction: column; gap: 0.1rem; padding: 0 0.7rem 1.2rem; text-decoration: none; color: var(--color-text); }
+  .brand-name { font-family: var(--font-display); font-size: 1.35rem; letter-spacing: -0.01em; line-height: 1.1; }
+  .brand-sub { font-size: 0.72rem; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+
+  .group-label {
+    font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--color-muted); padding: 1.1rem 0.7rem 0.4rem;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 0.65rem; width: 100%;
+    padding: 0.5rem 0.7rem; border-radius: 8px; border: 0; background: transparent;
+    font: inherit; font-size: 0.875rem; color: var(--color-muted); text-decoration: none;
+    cursor: pointer; text-align: left; transition: background 0.15s, color 0.15s;
+  }
+  .nav-item svg { width: 16px; height: 16px; flex: 0 0 16px; }
+  .nav-item span:not(.badge):not(.lvl-chip) { flex: 1; }
+  .nav-item:hover { background: var(--color-row-hover); color: var(--color-text); }
+  .nav-item.active { background: var(--color-row-hover); color: var(--color-text); font-weight: 600; box-shadow: inset 2px 0 0 var(--color-text); }
+  .nav-item.danger { color: #dc2626; }
+  .nav-item.danger:hover { background: #fee2e2; color: #b91c1c; }
+  html[data-theme='dark'] .nav-item.danger { color: #f87171; }
+  html[data-theme='dark'] .nav-item.danger:hover { background: #2d0a0a; color: #fca5a5; }
+  .nav-item.tg-on { color: #16a34a; }
+  html[data-theme='dark'] .nav-item.tg-on { color: #4ade80; }
+  html:not([data-theme='dark']) .moon-icon { display: none; }
+  html[data-theme='dark'] .sun-icon { display: none; }
+
+  .badge {
+    background: #dc2626; color: #fff; font-size: 0.68rem; font-weight: 700;
+    padding: 0.05rem 0.45rem; border-radius: 99px; line-height: 1.5; min-width: 18px; text-align: center;
+  }
+  .subnav { display: flex; flex-direction: column; margin: 0.1rem 0 0.2rem 1.55rem; padding-left: 0.7rem; border-left: 1px solid var(--color-border); }
+  .subnav a { font-size: 0.8rem; color: var(--color-muted); text-decoration: none; padding: 0.28rem 0.5rem; border-radius: 6px; }
+  .subnav a:hover { color: var(--color-text); background: var(--color-row-hover); }
+
+  /* Chip del nivel de defensa */
+  .lv-0 { --lv-bg:#d1fae5; --lv-fg:#065f46; }
+  .lv-1 { --lv-bg:#e0f2fe; --lv-fg:#075985; }
+  .lv-2 { --lv-bg:#fef3c7; --lv-fg:#92400e; }
+  .lv-3 { --lv-bg:#fee2e2; --lv-fg:#991b1b; }
+  .lv-off { --lv-bg:var(--color-row-hover); --lv-fg:var(--color-muted); }
+  html[data-theme='dark'] .lv-0 { --lv-bg:#064e3b; --lv-fg:#6ee7b7; }
+  html[data-theme='dark'] .lv-1 { --lv-bg:#0c2a3e; --lv-fg:#38bdf8; }
+  html[data-theme='dark'] .lv-2 { --lv-bg:#451a03; --lv-fg:#fcd34d; }
+  html[data-theme='dark'] .lv-3 { --lv-bg:#450a0a; --lv-fg:#fca5a5; }
+  .lvl-chip { background: var(--lv-bg); color: var(--lv-fg); font-size: 0.75rem; font-weight: 700; padding: 0.2rem 0.7rem; border-radius: 99px; text-decoration: none; }
+  .lvl-chip.small { font-size: 0.68rem; padding: 0.05rem 0.5rem; min-width: 1.4rem; text-align: center; }
+
+  .panel-main { flex: 1; min-width: 0; }
+
+  /* ── Móvil: menú lateral deslizante ─────────────────────────────────── */
+  .mobilebar { display: none; }
+  .scrim { display: none; }
+  .icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 2.2rem; height: 2.2rem; border-radius: 8px; border: 1px solid var(--color-border); background: transparent; color: var(--color-text); cursor: pointer; }
+  @media (max-width: 900px) {
+    .shell { display: block; }
+    .mobilebar {
+      display: flex; align-items: center; justify-content: space-between; gap: 0.8rem;
+      position: sticky; top: 0; z-index: 40; padding: 0.6rem 1rem;
+      background: var(--color-glass); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--color-border);
+    }
+    .mobilebar-title { font-family: var(--font-display); font-size: 1.15rem; flex: 1; }
+    .sidebar {
+      position: fixed; left: 0; top: 0; bottom: 0; z-index: 60; height: 100%;
+      transform: translateX(-102%); transition: transform 0.22s ease; box-shadow: 0 0 40px rgba(0,0,0,0.25);
+    }
+    .shell.open .sidebar { transform: none; }
+    .shell.open .scrim { display: block; position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,0.45); }
+  }
+</style>
