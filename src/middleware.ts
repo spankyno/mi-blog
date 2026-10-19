@@ -1,4 +1,5 @@
 import { defineMiddleware } from 'astro:middleware';
+import { defend, isDefenseExempt } from './lib/defense';
 
 const JWT_COOKIE = 'panel_token';
 
@@ -56,7 +57,7 @@ function addSecurityHeaders(response: Response, isPanel: boolean, isEditor: bool
   headers.set('X-Content-Type-Options', 'nosniff');
   headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), bluetooth=()');
-  headers.set('X-Robots-Tag', isPanel ? 'noindex, nofollow' : 'index, follow');
+  headers.set('X-Robots-Tag', headers.get('X-Robots-Tag') ?? (isPanel ? 'noindex, nofollow' : 'index, follow'));
   const csp = isEditor ? CSP_EDITOR : (isPanel ? CSP_PANEL : CSP_PUBLIC);
   headers.set('Content-Security-Policy', csp);
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
@@ -107,6 +108,17 @@ export const onRequest = defineMiddleware(async (context, next) => {
   // Solo las páginas con el editor necesitan unsafe-eval
   const isEditor = url.pathname === '/panel/nuevo' ||
                    url.pathname.startsWith('/panel/editar/');
+
+  // Defensa (listas, mantenimiento…). El panel y el webhook de Telegram quedan
+  // siempre fuera para poder deshacer cualquier cambio. Sin consultas a D1/KV
+  // por petición: usa la caché en memoria (refresco cada ~60 s).
+  if (!isDefenseExempt(url.pathname)) {
+    const outcome = await defend(context);
+    context.locals.defense = outcome.info;
+    if (outcome.response) {
+      return addSecurityHeaders(outcome.response, false, false);
+    }
+  }
 
   // Excluir rutas XML — no necesitan cabeceras de seguridad web
   if (url.pathname === '/sitemap.xml' || url.pathname === '/rss.xml') {
