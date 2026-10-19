@@ -1,5 +1,6 @@
 User-agent: *
 Allow: /
 Disallow: /panel/
+Disallow: /trap
 
 Sitemap: https://aitorsanchez.pages.dev/sitemap.xml
