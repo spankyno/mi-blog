@@ -106,6 +106,8 @@ npx wrangler d1 execute mi-blog-db --remote --file=db/migrations/0001_defense_ta
 npx wrangler d1 execute mi-blog-db --remote --file=db/migrations/0002_bot_reasons.sql   # una sola vez
 # Fase 2
 npx wrangler d1 execute mi-blog-db --remote --file=db/migrations/0003_defense_rules_seed.sql
+# Revisión: índices para que el refresco de listas no recorra tablas enteras
+npx wrangler d1 execute mi-blog-db --remote --file=db/migrations/0004_defense_indexes.sql
 # Fase 3: sin migración nueva. Añade el secret TELEGRAM_WEBHOOK_SECRET en Cloudflare Pages,
 # despliega y pulsa «Registrar webhook» en /panel/defensa.
 git add -A && git commit -m "Defensa y rediseño del panel (fases 1-4)" && git push
