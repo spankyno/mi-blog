@@ -50,8 +50,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   // Defensa en profundidad frente a CSRF (la cookie ya es SameSite=Strict).
   const origin = request.headers.get('origin');
-  if (origin && new URL(origin).host !== new URL(request.url).host) {
-    return json({ ok: false, error: 'Origen no permitido' }, 403);
+  if (origin) {
+    let sameOrigin = false;
+    try { sameOrigin = new URL(origin).host === new URL(request.url).host; } catch { /* Origin: null u otro valor inválido */ }
+    if (!sameOrigin) return json({ ok: false, error: 'Origen no permitido' }, 403);
   }
   if (!(request.headers.get('content-type') ?? '').includes('application/json')) {
     return json({ ok: false, error: 'Content-Type debe ser application/json' }, 415);
