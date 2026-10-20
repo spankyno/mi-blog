@@ -120,7 +120,7 @@ if (db && !isPrefetch) {
 
           if (defenseInfo?.watch?.length) result.reasons = [...result.reasons, ...defenseInfo.watch];
 
-        // Actualizar el registro con el score definitivo (y el motivo, si la
+          // Actualizar el registro con el score definitivo (y el motivo, si la
           // columna bot_reasons existe; si no, se guarda sin él).
           const reasonsText = result.reasons.join(',').slice(0, 300);
           try {
@@ -136,12 +136,12 @@ if (db && !isPrefetch) {
           }
 
           // Auto-baneo de reincidentes (solo cuenta bots no declarados con score alto)
-        if (result.isBot) {
-          const { recordBotVisit } = await import('../../lib/defense');
-          await recordBotVisit({ db, ip, userAgent, asn: typeof cf?.asn === 'number' ? cf.asn : null, score: result.score, reasons: result.reasons, env, alreadyFlagged: defenseFlagged });
-        }
+          if (result.isBot) {
+            const { recordBotVisit } = await import('../../lib/defense');
+            await recordBotVisit({ db, ip, userAgent, asn: typeof cf?.asn === 'number' ? cf.asn : null, score: result.score, reasons: result.reasons, env, alreadyFlagged: defenseFlagged });
+          }
 
-        // Aviso de Telegram solo para visitas humanas (score < umbral)
+          // Aviso de Telegram solo para visitas humanas (score < umbral)
           if (!result.isBot) {
             await sendTelegramVisita(env, {
               slug: slug!,
