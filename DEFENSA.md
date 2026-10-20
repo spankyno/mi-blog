@@ -81,6 +81,8 @@ Layout común `src/layouts/Panel.astro` con barra lateral (se convierte en menú
 - Los controles que antes se repetían en cada página (tema, Telegram, cerrar sesión) viven una sola vez en el layout.
 - `/panel` (Posts) incluye un resumen: publicados, borradores, comentarios pendientes, mensajes sin leer, visitas humanas y bots de 24 h.
 - `/panel/defensa` incluye una **estimación de uso de cuota** (cota superior): escrituras de KV y de D1 de las últimas 24 h frente al límite gratuito. Las cifras exactas están en el panel de Cloudflare.
+- **Ayuda** (`/panel/defensa/ayuda`): guía rápida por situaciones, referencia punto por punto de cada ajuste (qué hace y cuándo actuar), glosario de motivos de clasificación y tabla de valores por defecto.
+- En **Visitas**, la etiqueta «bot» muestra al pasar el ratón la puntuación y los motivos (si existe la columna `bot_reasons`).
 - Las páginas de edición (`nuevo`, `editar`, `preview`) y `login` mantienen su diseño a pantalla completa, sin barra lateral, para no tocar el editor.
 
 ## Retención de datos
