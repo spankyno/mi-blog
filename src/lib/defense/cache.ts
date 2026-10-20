@@ -24,6 +24,8 @@ export async function getState(db: any): Promise<DefenseState | null> {
       })
       .catch((e) => {
         console.error('defense: error cargando estado, uso la última copia:', e);
+        // Reintento en ~10 s (no en cada petición) para no agravar una caída de D1.
+        if (cached) cached = { ...cached, loadedAt: Date.now() - CACHE_TTL_MS + 10_000 };
         return cached;
       })
       .finally(() => {

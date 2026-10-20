@@ -178,9 +178,12 @@ export async function defend({ request, locals }: Ctx): Promise<DefenseOutcome> 
 
         // Excedida. Solo las reglas por IP clasifican la visita como bot;
         // el resto (UA, ASN, global) son avisos informativos.
-        if (rule.scope === 'ip') info.flags.push(`rule:${rule.name}`);
-        else (info.watch ??= []).push(`watch:${rule.name}`);
-        ruleFlagged = true;
+        if (rule.scope === 'ip') {
+          info.flags.push(`rule:${rule.name}`);
+          ruleFlagged = true; // solo las reglas por IP marcan la visita como bot
+        } else {
+          (info.watch ??= []).push(`watch:${rule.name}`);
+        }
 
         if (
           state.level >= 2 &&

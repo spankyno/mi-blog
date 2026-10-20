@@ -52,6 +52,18 @@ function clampLevel(v: unknown): DefenseLevel {
   return (Number.isFinite(n) && n >= 0 && n <= 3 ? n : DEFAULTS.level) as DefenseLevel;
 }
 
+/**
+ * Una tabla que aún no existe (migración sin ejecutar) se tolera: el módulo
+ * funciona con lo que haya. Cualquier otro error (caída o fallo transitorio de
+ * D1) se propaga, para que la caché conserve la última copia buena en vez de
+ * tomar «sin listas y nivel 0» (lo que, por ejemplo, reabriría el sitio durante
+ * un mantenimiento).
+ */
+function tolerateMissingTable(e: any): null {
+  if (/no such table/i.test(String(e?.message ?? e))) return null;
+  throw e;
+}
+
 export async function loadState(db: DB): Promise<DefenseState> {
   const nowIso = new Date().toISOString();
 
@@ -66,7 +78,7 @@ export async function loadState(db: DB): Promise<DefenseState> {
           'defense_alert_cooldown_min','defense_auto_escalate','defense_notify_changes','telegram_enabled')`
       )
       .all()
-      .catch(() => null),
+      .catch(tolerateMissingTable),
     db
       .prepare(
         `SELECT id, kind, value, source, reason FROM blocked_ips
@@ -74,25 +86,25 @@ export async function loadState(db: DB): Promise<DefenseState> {
       )
       .bind(nowIso)
       .all()
-      .catch(() => null),
+      .catch(tolerateMissingTable),
     db
       .prepare(`SELECT id, kind, value FROM allow_list LIMIT ${MAX_ALLOW_ROWS}`)
       .all()
-      .catch(() => null),
+      .catch(tolerateMissingTable),
     db
       .prepare(
         `SELECT ip FROM bot_ips
          WHERE detected_at >= datetime('now', '-${HONEYPOT_DAYS} days') LIMIT ${MAX_HONEYPOT_ROWS}`
       )
       .all()
-      .catch(() => null),
+      .catch(tolerateMissingTable),
     db
       .prepare(
         `SELECT id, name, scope, path_pattern, max_hits, window_s, action, ban_minutes
          FROM defense_rules WHERE enabled = 1 ORDER BY id LIMIT ${MAX_RULES}`
       )
       .all()
-      .catch(() => null),
+      .catch(tolerateMissingTable),
   ]);
 
   const settings: Record<string, string> = {};
