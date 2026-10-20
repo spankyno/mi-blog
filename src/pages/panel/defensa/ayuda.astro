@@ -1,0 +1,750 @@
+---
+import Panel from '../../../layouts/Panel.astro';
+
+// Ayuda del sistema de defensa. Todo el contenido es estático y de confianza
+// (se pinta con set:html para poder usar <code> y <strong>).
+
+type Item = {
+  name: string;
+  tag?: string;      // valor por defecto u otra etiqueta corta
+  what: string[];    // qué hace
+  when: string[];    // cuándo se recomienda actuar
+  careful?: string[]; // ojo con…
+};
+type Section = { id: string; title: string; intro: string; items: Item[] };
+
+const guide: { situation: string; signal: string; action: string }[] = [
+  {
+    situation: 'Telegram avisa de «Ráfaga desde una IP»',
+    signal: 'Una IP supera el umbral de visitas en 60 s.',
+    action: 'Mira <strong>Actividad → IPs más activas</strong>. Si es claramente un bot, pulsa <strong>Bloquear IP (24 h)</strong> en el mensaje. Recuerda que en niveles 0–1 solo se marca: para cortarla de verdad hay que estar en <strong>nivel 2</strong>.',
+  },
+  {
+    situation: 'Oleada de bots desde muchas IPs distintas',
+    signal: 'Aviso de «Oleada de bots» o muchas visitas marcadas en Actividad.',
+    action: 'En <strong>Visitas</strong> mira si comparten red (ASN), país o User-Agent. Si vienen de un hosting sin lectores reales, bloquea el <strong>ASN</strong> (nivel 2). Si no hay patrón, pasa a <strong>nivel 1</strong> (y activa el <strong>Modo lite</strong> si te preocupa la cuota): marcas sin gastar recursos.',
+  },
+  {
+    situation: 'Cloudflare avisa de que te acercas al límite de KV o de D1',
+    signal: 'Correo del 50 % del límite, o barra ámbar/roja en «Uso estimado de cuota».',
+    action: 'Sube a <strong>nivel 1</strong>. Si sigue subiendo, activa el <strong>Modo lite</strong>. Revisa <strong>IPs más activas</strong> y bloquea (o permite) lo que corresponda.',
+  },
+  {
+    situation: 'Un scraper usa una IP distinta en cada visita',
+    signal: 'Decenas de IPs de países distintos, todas con una sola visita, sin referer.',
+    action: 'Ninguna lista ni regla por IP lo frena. Deja el <strong>nivel 0 o 1</strong> para mantener limpias las estadísticas. Como último recurso, un <strong>mantenimiento</strong> temporal. La solución real es un dominio propio con WAF de Cloudflare.',
+  },
+  {
+    situation: 'Vas a hacer un despliegue o un trabajo largo',
+    signal: 'Quieres evitar visitas mientras trabajas.',
+    action: 'Activa el <strong>Modo mantenimiento</strong> con mensaje y hora estimada. Acuérdate de desactivarlo: la hora estimada no lo apaga sola.',
+  },
+  {
+    situation: 'Un lector real aparece como bot o ha sido bloqueado',
+    signal: 'Te lo cuenta alguien, o ves su IP en la lista de bloqueo.',
+    action: 'Añade su IP a la <strong>Lista blanca</strong> y quita la entrada de la lista de bloqueo. En <strong>Visitas</strong>, pasa el ratón por la etiqueta «bot» para ver el motivo exacto y ajustar la regla que lo atrapó.',
+  },
+  {
+    situation: 'Te has bloqueado a ti mismo',
+    signal: 'No ves el blog público desde tu conexión.',
+    action: 'El <strong>panel nunca se bloquea</strong>: entra en <code>/panel/defensa</code>, quita la entrada y añade tu IP a la lista blanca desde <strong>Tu conexión</strong>.',
+  },
+  {
+    situation: 'Un ataque enorme (cerca de 100.000 peticiones al día)',
+    signal: 'Cloudflare avisa de las peticiones del Worker.',
+    action: 'Ni el mantenimiento ayuda del todo: cada petición, aunque se rechace, cuenta como invocación. Solo un dominio propio con WAF o Bot Fight Mode puede cortarlo antes de llegar al Worker.',
+  },
+  {
+    situation: 'No te llegan alertas, o los botones de Telegram no responden',
+    signal: 'Silencio en Telegram durante un ataque, o botones que no hacen nada.',
+    action: 'Comprueba que el botón de la barra lateral dice <strong>Telegram ✓</strong>, que las alertas están activas, y usa <strong>Enviar alerta de prueba</strong>. Si los botones no responden: <strong>Registrar webhook</strong> y luego <strong>Comprobar webhook</strong>.',
+  },
+];
+
+const sections: Section[] = [
+  {
+    id: 'niveles',
+    title: 'Nivel de defensa',
+    intro: 'Es el mando principal. Define qué se hace con las visitas que las listas o las reglas señalan. <strong>Por defecto: nivel 0 (solo marcar).</strong>',
+    items: [
+      {
+        name: 'Nivel 0 · Normal',
+        tag: 'Por defecto',
+        what: [
+          'Las IPs de la lista de bloqueo y las que superan una regla por IP se <strong>marcan como bot</strong> en las estadísticas.',
+          'El detector de bots hace su análisis completo en cada visita.',
+          'No se bloquea nada: nadie recibe un 403 ni un 429.',
+        ],
+        when: [
+          'Día a día, cuando quieres observar sin ningún riesgo de cortar a lectores reales.',
+          'Mientras ajustas listas y reglas y quieres ver qué marcarían.',
+        ],
+        careful: ['Marcar no ahorra cuota: las visitas sin marca siguen pasando por el análisis completo (y por KV).'],
+      },
+      {
+        name: 'Nivel 1 · Vigilancia',
+        what: [
+          'Igual que el nivel 0, pero las visitas <strong>ya marcadas</strong> por listas o reglas se saltan el análisis completo y KV: <strong>ahorra cuota</strong>.',
+          'Sigue sin bloquear nada.',
+        ],
+        when: [
+          'Hay un ataque en curso o te acercas al límite de KV/D1 y no quieres arriesgarte a cortar tráfico.',
+          'Es el nivel al que sube la «escalada automática» de las alertas, si la activas.',
+        ],
+      },
+      {
+        name: 'Nivel 2 · Defensa',
+        what: [
+          'Las entradas de la <strong>lista de bloqueo</strong> (manuales, automáticas y las de Telegram) reciben un <code>403</code>.',
+          'Las reglas por <strong>IP</strong> y por <strong>ASN</strong> con acción «429» o «429 + baneo» responden <code>429</code> (con baneo, la IP pasa a la lista y los siguientes accesos reciben 403).',
+          'Las IPs atrapadas por el honeypot <strong>solo se marcan</strong>, nunca se bloquean.',
+        ],
+        when: [
+          'Hay un atacante identificado y concentrado (una IP, un rango o una red) y quieres cortarlo de verdad.',
+          'Tras una alerta de ráfaga que se repite.',
+        ],
+        careful: [
+          'Puede cortar a lectores legítimos que compartan IP (oficinas, redes móviles).',
+          'Antes de subir, añade tu IP a la lista blanca (apartado <strong>Tu conexión</strong>).',
+          'Vuelve a 0 o 1 cuando acabe el ataque y revisa las entradas automáticas.',
+        ],
+      },
+      {
+        name: 'Nivel 3 · Mantenimiento',
+        what: [
+          'Todo el sitio público devuelve <code>503</code> con la página de mantenimiento y <code>Retry-After</code>.',
+          'El panel, su API y el webhook de Telegram siguen accesibles; la lista blanca también pasa.',
+        ],
+        when: ['Emergencia que no consigues contener, o trabajos de despliegue y migración.'],
+        careful: [
+          'Un 503 de unas horas no daña el SEO; mantenerlo días sí puede hacerlo.',
+          'Cada petición sigue contando como invocación del Worker aunque se rechace.',
+        ],
+      },
+      {
+        name: 'Defensa activa (interruptor maestro)',
+        tag: 'Por defecto: activada',
+        what: [
+          'Desmarcado, el módulo de defensa <strong>no hace nada</strong>: ni listas, ni reglas, ni mantenimiento, ni alertas, ni auto-baneo.',
+          'El blog se comporta como antes de instalarlo (el detector de bots sigue funcionando).',
+        ],
+        when: ['Cuando sospechas que la defensa está causando un problema y quieres descartarla en un minuto, sin redesplegar.'],
+        careful: ['Si estabas en mantenimiento (nivel 3), al apagar el interruptor el sitio vuelve a abrirse.'],
+      },
+      {
+        name: 'Modo lite',
+        tag: 'Por defecto: desactivado',
+        what: [
+          'En <strong>nivel 1 o superior</strong>, las visitas ya marcadas por listas o reglas <strong>no se registran</strong> en la tabla de visitas; solo se cuentan en los contadores de Actividad.',
+          'Ahorra las escrituras de D1 de cada visita marcada.',
+        ],
+        when: ['Ataque grande que dispara las escrituras de D1, o cuando la tarjeta de cuota está en ámbar o rojo.'],
+        careful: [
+          'Esas visitas dejan de aparecer en <strong>Visitas</strong> y en <strong>Estadísticas</strong>.',
+          'En nivel 0 no tiene ningún efecto.',
+        ],
+      },
+    ],
+  },
+  {
+    id: 'mantenimiento',
+    title: 'Modo mantenimiento',
+    intro: 'Pone el sitio público «en pausa» con una página amable. Es el botón de pánico.',
+    items: [
+      {
+        name: 'Mensaje para los visitantes',
+        what: ['Texto (hasta 500 caracteres) que se muestra en la página de mantenimiento. Se escapa el HTML, así que solo admite texto.'],
+        when: ['Personalízalo según el motivo: «Volvemos a las 18:00» es mejor que el mensaje genérico.'],
+      },
+      {
+        name: 'Vuelta estimada (opcional)',
+        what: [
+          'Muestra «Vuelta estimada» en la página (hora de Madrid) y fija la cabecera <code>Retry-After</code> con ese plazo (entre 1 minuto y 24 horas).',
+          'Sin hora estimada, <code>Retry-After</code> es de 10 minutos.',
+        ],
+        when: ['Siempre que sepas cuánto va a durar: ayuda a los buscadores a volver en el momento adecuado.'],
+        careful: ['Cuando pasa la hora estimada, solo deja de mostrarse: <strong>el mantenimiento no se desactiva solo</strong>.'],
+      },
+      {
+        name: 'Activar / Desactivar mantenimiento',
+        what: [
+          'Al activar, guarda el nivel en el que estabas y pasa al nivel 3.',
+          'Al desactivar, <strong>restaura ese nivel</strong> (si no hay ninguno guardado, vuelve al 0).',
+        ],
+        when: ['Trabajos programados, o como último recurso durante un ataque.'],
+        careful: ['Pide confirmación antes de activarse. Los cambios pueden tardar hasta ~60 s en llegar a todo el sitio.'],
+      },
+    ],
+  },
+  {
+    id: 'conexion',
+    title: 'Tu conexión',
+    intro: 'Muestra la IP, la red (ASN) y el país con los que Cloudflare te ve ahora mismo.',
+    items: [
+      {
+        name: 'Añadir a lista blanca',
+        what: ['Añade tu IP actual a la lista blanca con la nota «Mi conexión (admin)».'],
+        when: [
+          'Antes de subir a nivel 2 o 3 por primera vez.',
+          'Cada vez que cambie tu IP (móvil, router reiniciado).',
+        ],
+        careful: ['El panel nunca se bloquea, pero sin esto no verías el blog público desde tu casa si te alcanza un bloqueo.'],
+      },
+    ],
+  },
+  {
+    id: 'bloqueo',
+    title: 'Lista de bloqueo y lista blanca',
+    intro: 'La lista de bloqueo señala qué se marca o se corta; la lista blanca <strong>siempre gana</strong> a la de bloqueo, a las reglas y al mantenimiento.',
+    items: [
+      {
+        name: 'Tipo «IP»',
+        what: ['Una dirección exacta, IPv4 o IPv6 (por ejemplo <code>45.138.12.27</code>).'],
+        when: ['Atacante concentrado en una sola dirección.'],
+      },
+      {
+        name: 'Tipo «Rango CIDR»',
+        what: ['Un bloque de direcciones, por ejemplo <code>45.138.12.0/24</code>. Mínimo aceptado: /8 en IPv4 y /16 en IPv6, para evitar bloqueos masivos por error.'],
+        when: ['El atacante rota entre direcciones cercanas de un mismo proveedor.'],
+      },
+      {
+        name: 'Tipo «ASN»',
+        what: ['Una red completa por su número (por ejemplo <code>16276</code> para OVH). Afecta a todas las IPs de ese proveedor.'],
+        when: ['El ataque sale de un hosting o datacenter donde no esperas lectores humanos.'],
+        careful: [
+          'Hay VPN y empresas con lectores reales dentro de un hosting.',
+          'No bloquees el ASN de Cloudflare (13335): incluye WARP y Workers.',
+        ],
+      },
+      {
+        name: 'Tipo «País (ISO 2)»',
+        what: ['Un país por su código de dos letras (por ejemplo <code>PL</code>).'],
+        when: ['Solo como último recurso, si todo el ataque viene de un país en el que no tienes lectores.'],
+        careful: ['Bloquea también a los lectores legítimos de ese país.'],
+      },
+      {
+        name: 'Duración',
+        tag: 'Por defecto: 24 horas',
+        what: ['Cuánto tiempo vale la entrada: 1 hora, 24 horas, 7 días, 30 días o permanente. Al caducar deja de tener efecto y se borra con la poda 7 días después.'],
+        when: [
+          'Usa duraciones cortas por defecto: se limpian solas.',
+          '«Permanente» solo para amenazas persistentes ya confirmadas.',
+        ],
+      },
+      {
+        name: 'Motivo (opcional)',
+        what: ['Una nota para ti, para saber por qué añadiste la entrada.'],
+        when: ['Siempre; dentro de un mes no recordarás por qué estaba ahí.'],
+      },
+      {
+        name: 'IPv6: bloquear todo su /64',
+        what: ['Convierte una IPv6 en el rango de su /64. Un atacante IPv6 suele controlar un /64 entero, así que bloquear una sola dirección no sirve.'],
+        when: ['Siempre que bloquees una dirección IPv6. El botón «Bloquear» de las IPs más activas ya lo hace por ti.'],
+      },
+      {
+        name: 'Origen de las entradas',
+        what: [
+          '<strong>manual</strong>: la añadiste tú en el panel.',
+          '<strong>auto</strong>: la creó el auto-baneo o una regla con baneo.',
+          '<strong>telegram</strong>: la creó un botón del bot.',
+          '<strong>honeypot</strong>: IPs atrapadas por la ruta trampa; no aparecen en la tabla, solo se <strong>marcan</strong> y nunca se bloquean.',
+        ],
+        when: ['Revisa las entradas «auto» una vez por semana y quita las que parezcan falsos positivos.'],
+      },
+      {
+        name: 'Aviso «incluiría tu propia conexión»',
+        what: ['Si la entrada que añades te alcanzaría a ti (por IP, rango, ASN o país), el panel te lo advierte y pide confirmación.'],
+        when: ['Léelo con calma: casi siempre significa que te falta añadir tu IP a la lista blanca.'],
+      },
+      {
+        name: 'Lista blanca (IP, rango, ASN o país)',
+        what: [
+          'Lo que esté aquí pasa siempre: no se marca por listas, no se limita, no entra en mantenimiento.',
+          'El detector de bots sigue puntuando sus visitas igualmente (la lista blanca es de la defensa, no del detector).',
+          'Los buscadores verificados (Google, Bing, Apple) ya están exentos de las reglas por ASN sin que hagas nada.',
+        ],
+        when: ['Tu IP, servicios de monitorización, colaboradores o clientes de confianza.'],
+        careful: ['Evita ASN o países amplios: cualquiera que use esa red tendría vía libre.'],
+      },
+    ],
+  },
+  {
+    id: 'reglas',
+    title: 'Reglas de frecuencia',
+    intro: 'Cuentan visitas por periodo («más de X visitas en Y segundos») y actúan cuando se superan. Se evalúan <strong>en memoria</strong>, sin gastar KV ni D1.',
+    items: [
+      {
+        name: 'Ámbito: Por IP',
+        what: [
+          'Cuenta las visitas de cada IP (IPv6: de cada /64).',
+          '<strong>Puede bloquear</strong> en nivel 2 y <strong>marca la visita como bot</strong> en todos los niveles.',
+        ],
+        when: ['Para frenar ráfagas de un atacante concentrado.'],
+      },
+      {
+        name: 'Ámbito: Mismo UA',
+        what: [
+          'Cuenta las visitas con exactamente el mismo User-Agent desde cualquier IP.',
+          '<strong>Nunca bloquea ni marca</strong>: solo deja un aviso interno, porque un navegador común compartido por muchos lectores en un pico viral daría falsos positivos.',
+        ],
+        when: ['Para detectar un scraper distribuido que repite siempre el mismo User-Agent: te lo enseña en los motivos de la visita.'],
+      },
+      {
+        name: 'Ámbito: Por ASN',
+        what: [
+          'Cuenta las visitas de cada red.',
+          'Puede responder 429 en nivel 2; con acción «baneo» actúa como 429 (el baneo temporal solo se aplica a reglas por IP). No marca como bot, solo avisa.',
+        ],
+        when: ['Cuando un proveedor concreto te inunda con muchas IPs distintas.'],
+      },
+      {
+        name: 'Ámbito: Global',
+        what: ['Cuenta todo el tráfico del sitio. Nunca bloquea; solo avisa.'],
+        when: ['Como termómetro de presión general sobre el blog.'],
+      },
+      {
+        name: 'Ruta',
+        tag: 'Por defecto: /blog/*',
+        what: [
+          '<code>*</code> = todo el sitio. <code>/blog/*</code> = todo lo que cuelga de /blog. <code>/blog</code> = solo esa ruta.',
+          'La regla solo cuenta las visitas a rutas que coincidan.',
+        ],
+        when: ['Limita las reglas a <code>/blog/*</code> para no afectar al formulario de contacto ni a los comentarios.'],
+      },
+      {
+        name: 'Visitas y ventana',
+        tag: 'Por defecto: 30 en 60 s',
+        what: ['«30 en 60 s» significa que la regla salta a partir de la visita número 31 dentro de esos 60 segundos. Es un contador deslizante aproximado.'],
+        when: [
+          'Un lector humano rara vez pasa de 10 páginas por minuto, así que 30 es holgado.',
+          'Bájalo a 15–20 si ves scraping rápido que se te escapa; súbelo si marca lectores reales.',
+        ],
+      },
+      {
+        name: 'Acción: Marcar',
+        what: ['Solo etiqueta la visita. Es la única acción posible en los ámbitos «Mismo UA» y «Global».'],
+        when: ['Para observar antes de bloquear.'],
+      },
+      {
+        name: 'Acción: 429',
+        what: ['En nivel 2, rechaza con «demasiadas peticiones» mientras se supere el límite. Se recupera sola cuando baja el ritmo. En niveles 0–1, solo marca.'],
+        when: ['Para frenar sin dejar rastro permanente.'],
+      },
+      {
+        name: 'Acción: 429 + baneo',
+        tag: 'Por defecto en «Ráfaga por IP»',
+        what: [
+          'En nivel 2, la primera vez que se supera devuelve 429 y añade la IP a la lista de bloqueo durante los minutos de «Baneo»; los accesos siguientes reciben 403.',
+          'En niveles 0–1, solo marca.',
+        ],
+        when: ['Contra atacantes insistentes que vuelven en cuanto pueden.'],
+      },
+      {
+        name: 'Baneo (min)',
+        tag: 'Por defecto: 15',
+        what: ['Duración del baneo temporal cuando la acción es «429 + baneo».'],
+        when: ['Súbelo (60 o más) si el mismo atacante regresa una y otra vez.'],
+      },
+      {
+        name: 'Activa, Editar, Borrar y «Crear las 3 por defecto»',
+        what: [
+          'El interruptor de cada fila activa o desactiva la regla sin borrarla.',
+          '«Crear las 3 por defecto» solo aparece si no queda ninguna regla.',
+          'Las reglas por defecto son: <strong>Ráfaga por IP</strong> (30/60 s en /blog/*, con baneo de 15 min), <strong>Mismo UA desde muchas IPs</strong> (20/60 s, aviso) y <strong>Presión global</strong> (300/60 s, aviso).',
+        ],
+        when: ['Desactiva una regla en lugar de borrarla si quieres probar sin ella unos días.'],
+      },
+      {
+        name: 'Exenciones y precisión',
+        what: [
+          'Quedan exentos de las reglas: la lista blanca y los buscadores verificados por red (Googlebot, Bingbot y Applebot desde las redes de Google, Microsoft y Apple). Un bot que finge ser Googlebot desde otra red <strong>no</strong> está exento.',
+          'Cada servidor de Cloudflare cuenta por separado, así que el recuento es aproximado.',
+        ],
+        when: ['Tenlo en cuenta al interpretar umbrales: son «más o menos», suficientes para frenar a un atacante concentrado.'],
+      },
+    ],
+  },
+  {
+    id: 'autoban',
+    title: 'Auto-baneo de reincidentes',
+    intro: 'Crea entradas de bloqueo automáticas cuando una IP se comporta como bot varias veces seguidas. En niveles 0–1 las entradas solo marcan; en nivel 2 bloquean.',
+    items: [
+      {
+        name: 'Activado',
+        tag: 'Por defecto: activado',
+        what: ['Permite que el sistema añada entradas «auto» a la lista de bloqueo sin que hagas nada.'],
+        when: ['Déjalo activado salvo que veas falsos positivos que no consigas arreglar con los umbrales.'],
+      },
+      {
+        name: 'Visitas bot',
+        tag: 'Por defecto: 5',
+        what: ['Cuántas visitas con puntuación de bot de 90 o más tiene que acumular una IP (IPv6: un /64) dentro de la ventana para que se cree la entrada.'],
+        when: [
+          'Baja a 3 si sufres scraping insistente.',
+          'Sube a 8–10 si ves lectores reales baneados.',
+        ],
+      },
+      {
+        name: 'En (min)',
+        tag: 'Por defecto: 10',
+        what: ['La ventana de tiempo en la que se cuentan esas visitas.'],
+        when: ['Amplíala si el atacante va despacio (una visita cada pocos minutos).'],
+      },
+      {
+        name: 'Ban (horas)',
+        tag: 'Por defecto: 24',
+        what: ['Cuánto dura la entrada automática antes de caducar.'],
+        when: ['Súbela a 72 o más para reincidentes que vuelven cada día.'],
+      },
+      {
+        name: 'Qué no cuenta y límites',
+        what: [
+          'No cuentan: los bots que se declaran (Googlebot, GPTBot, ClaudeBot…), los buscadores verificados, la lista blanca y las IPs que ya están en la lista.',
+          'Máximo <strong>500</strong> entradas automáticas vigentes a la vez.',
+          'El recuento es en memoria de cada servidor, así que puede tardar algo más en saltar.',
+        ],
+        when: [
+          'Si quieres cortar a los crawlers de IA que se declaran, no lo hace el auto-baneo: usa <code>robots.txt</code> o la lista de bloqueo (por ASN o rango).',
+        ],
+      },
+    ],
+  },
+  {
+    id: 'alertas',
+    title: 'Alertas por Telegram',
+    intro: 'Te avisan de un ataque y te dejan reaccionar desde el móvil. No hay cron: las alertas salen cuando llega tráfico.',
+    items: [
+      {
+        name: 'Alertas activas',
+        tag: 'Por defecto: activadas',
+        what: ['Interruptor de las alertas de defensa. El botón «Telegram ✓/✗» de la barra lateral silencia además todos los avisos de Telegram del blog, incluidos estos.'],
+        when: ['Desactívalas solo si estás haciendo pruebas que generarían avisos.'],
+      },
+      {
+        name: 'Ráfaga (visitas/60 s)',
+        tag: 'Por defecto: 30',
+        what: [
+          'Avisa cuando una IP (IPv6: un /64) supera ese número de visitas en 60 segundos, en cualquier ruta.',
+          'No avisa de IPs de la lista blanca ni durante el mantenimiento.',
+        ],
+        when: ['Sube el valor si recibes avisos que no son ataques; bájalo si se te escapan ráfagas.'],
+      },
+      {
+        name: 'Oleada (bots/5 min)',
+        tag: 'Por defecto: 40',
+        what: ['Avisa cuando se acumulan más de ese número de visitas de bots en 5 minutos, vengan de las IPs que vengan (incluye las marcadas por listas y reglas, y los bots declarados).'],
+        when: ['Para detectar ataques distribuidos que no se concentran en una sola IP.'],
+      },
+      {
+        name: 'Espera (min)',
+        tag: 'Por defecto: 30',
+        what: [
+          'Tiempo mínimo entre dos avisos del mismo tipo.',
+          'Dentro de ese periodo no se avisa de otras IPs distintas: Actividad sí las muestra.',
+        ],
+        when: ['Baja a 10–15 si quieres más detalle durante un ataque; sube si te saturan.'],
+      },
+      {
+        name: 'Escalar solo a Vigilancia',
+        tag: 'Por defecto: desactivado',
+        what: ['Si saltas una alerta estando en nivel 0, el sistema pasa solo al nivel 1. <strong>Nunca</strong> sube al 2 ni al 3 por su cuenta.'],
+        when: ['Si no vas a poder reaccionar enseguida y quieres ahorrar cuota automáticamente.'],
+      },
+      {
+        name: 'Avisar de cambios de nivel desde el panel',
+        tag: 'Por defecto: activado',
+        what: ['Te manda un mensaje cada vez que alguien cambia el nivel o el mantenimiento desde el panel.'],
+        when: ['Útil como alarma: si recibes un cambio que no hiciste tú, alguien ha entrado en tu panel.'],
+      },
+      {
+        name: 'Botones del mensaje',
+        what: [
+          '<strong>Bloquear IP (24 h)</strong>: añade la IP (o su /64) a la lista de bloqueo, con origen «telegram».',
+          '<strong>Subir a Defensa</strong>: pasa a nivel 2.',
+          '<strong>Mantenimiento</strong>: pide una segunda confirmación antes de activarse. Si ya estás en mantenimiento, el botón es «Salir de mantenimiento».',
+          '<strong>Ignorar</strong>: quita los botones y no hace nada más.',
+          'El comando <code>/estado</code> responde con el nivel, las entradas vigentes y los contadores de 24 h.',
+        ],
+        when: ['Bloquear solo corta de verdad en nivel 2: el bot te lo recuerda y te ofrece subir de nivel.'],
+        careful: ['Usa un <strong>chat privado</strong> con el bot: en un grupo, cualquier miembro podría pulsar los botones.'],
+      },
+      {
+        name: 'Enviar alerta de prueba',
+        what: ['Manda un mensaje de prueba a tu chat.'],
+        when: ['Al configurar, y siempre que sospeches que las alertas no llegan.'],
+      },
+      {
+        name: 'Registrar webhook y Comprobar webhook',
+        what: [
+          '<strong>Registrar</strong> le dice a Telegram a qué dirección enviar tus pulsaciones de botones y comandos. Sin esto, las alertas llegan pero los botones no funcionan.',
+          '<strong>Comprobar</strong> muestra la dirección registrada, los mensajes pendientes y el último error.',
+          'Requiere el secret <code>TELEGRAM_WEBHOOK_SECRET</code> (16–256 caracteres: letras, números, <code>_</code> y <code>-</code>) y haber redesplegado después de crearlo.',
+        ],
+        when: [
+          'Una vez, al configurar, y de nuevo si cambias el secret o el dominio.',
+          'Si los botones fallan: «Comprobar» y revisa el último error.',
+        ],
+      },
+    ],
+  },
+  {
+    id: 'actividad',
+    title: 'Actividad',
+    intro: 'Tu cuadro de mandos de las últimas 24 horas.',
+    items: [
+      {
+        name: 'Resumen de 24 h',
+        what: [
+          '<strong>Visitas registradas</strong>: las que han quedado en la base de datos.',
+          '<strong>Marcadas como bot</strong>: las clasificadas como bot por el detector o por defensa.',
+          '<strong>Marcadas por listas</strong>, <strong>Bloqueadas (403)</strong> y <strong>Respondidas 503</strong>: lo que ha gestionado el módulo de defensa.',
+        ],
+        when: ['Míralo tras una alerta o un cambio de nivel para comprobar el efecto real.'],
+      },
+      {
+        name: 'Barras por hora',
+        what: ['Cada barra es una hora (en UTC); su altura suma lo marcado, bloqueado, limitado y respondido en mantenimiento. El detalle aparece al pasar el ratón.'],
+        when: ['Para ver cuándo empezó un ataque y si tu cambio de nivel lo frenó.'],
+      },
+      {
+        name: 'Uso estimado de cuota gratuita',
+        what: [
+          '<strong>KV</strong>: cota superior de escrituras = 2 por cada visita que llegó al análisis completo (límite gratuito: 1.000 al día).',
+          '<strong>D1</strong>: ≈ 2 escrituras por visita registrada más los contadores (límite gratuito: 100.000 al día).',
+          'Verde por debajo del 50 %, ámbar del 50 al 79 %, rojo desde el 80 %.',
+        ],
+        when: [
+          'En ámbar: sube a nivel 1.',
+          'En rojo: nivel 1 con Modo lite, y revisa las IPs más activas.',
+        ],
+        careful: ['Son estimaciones; las cifras exactas están en el panel de Cloudflare. Si dice «sin datos», falta la migración <code>0002</code>.'],
+      },
+      {
+        name: 'IPs más activas',
+        what: [
+          'Las IPs con más visitas en las últimas 24 horas, con cuántas fueron de bot.',
+          '<strong>Permitir</strong> la añade a la lista blanca; <strong>Bloquear</strong> la añade a la lista de bloqueo 24 h (en IPv6, su /64 completo).',
+        ],
+        when: ['Tras una alerta: es la forma más rápida de actuar sobre el culpable.'],
+      },
+    ],
+  },
+  {
+    id: 'datos',
+    title: 'Mantenimiento de datos y registro',
+    intro: 'Mantiene la base de datos ligera y te deja auditar lo que ha pasado.',
+    items: [
+      {
+        name: 'Retención y «Limpiar ahora»',
+        what: [
+          'Visitas de bots: <strong>30 días</strong>. Visitas humanas: <strong>unos 13 meses</strong> (las estadísticas muestran 12). IPs del honeypot: 30 días. Eventos: 90 días. Contadores por hora: 30 días. Bloqueos caducados: 7 días después de caducar.',
+          'La tabla muestra cuántas filas se borrarían ahora. «Limpiar ahora» las borra, hasta 20.000 por tabla y ejecución.',
+        ],
+        when: [
+          'Una vez al mes, o cuando el tamaño de la base de datos te preocupe.',
+          'Si «Limpiar ahora» no vacía todo, vuelve a pulsarlo.',
+        ],
+        careful: ['<strong>Es irreversible.</strong> Si quieres conservar los datos, exporta antes desde Posts → Exportar datos.'],
+      },
+      {
+        name: 'Poda automática diaria',
+        tag: 'Por defecto: desactivada',
+        what: ['Borra los datos antiguos una vez al día, aprovechando una visita al sitio (no hay cron). No avisa.'],
+        when: ['Cuando ya estés conforme con la retención y no quieras acordarte de limpiar a mano.'],
+      },
+      {
+        name: 'Registro de eventos',
+        what: ['Anota los cambios de nivel y de mantenimiento, altas y bajas de listas y reglas, baneos automáticos, alertas, podas y registros del webhook, con quién lo hizo (tu IP o «telegram:…»). Muestra los últimos 15.'],
+        when: ['Para saber quién cambió algo y cuándo, o por qué una IP acabó en la lista.'],
+      },
+    ],
+  },
+];
+
+const reasons: { code: string; meaning: string; points: string }[] = [
+  { code: 'sin-ua', meaning: 'La visita no trae User-Agent.', points: '+80' },
+  { code: 'sin-accept-language', meaning: 'No indica idioma; los navegadores reales sí lo hacen.', points: '+15' },
+  { code: 'accept-genérico', meaning: 'Cabecera Accept vacía o «*/*», típica de scripts.', points: '+10' },
+  { code: 'sec-fetch-ok', meaning: 'Navegación con cabeceras de navegador real.', points: '−20' },
+  { code: 'known-bot', meaning: 'Bot que se declara: Googlebot, Bingbot, GPTBot, ClaudeBot…', points: '+90' },
+  { code: 'scraper-ua', meaning: 'User-Agent de herramienta de scraping: curl, python-requests, Selenium…', points: '+60' },
+  { code: 'ua-sospechoso', meaning: 'User-Agent demasiado corto o genérico.', points: '+30' },
+  { code: 'browser-spoofing', meaning: 'Dice ser un navegador pero viene de un hosting o datacenter.', points: '+40' },
+  { code: 'low-rtt-datacenter', meaning: 'Latencia casi nula desde un datacenter (refuerza el anterior).', points: '+30' },
+  { code: 'burst-N/1s', meaning: 'N visitas en el mismo segundo desde la misma IP.', points: '+35 (2) / +70 (3 o más)' },
+  { code: 'rate-N/60s', meaning: 'N visitas en 60 segundos desde la misma IP.', points: '+25 (8 o más) / +50 (15 o más)' },
+  { code: 'multi-ua:N', meaning: 'La misma IP usó N User-Agents distintos en 60 segundos.', points: '+20 (2) / +60 (3 o más)' },
+  { code: 'honeypot', meaning: 'La IP cayó antes en la ruta trampa.', points: '+100' },
+  { code: 'cf-bot-score:N', meaning: 'Puntuación de bot de Cloudflare (casi nunca disponible en el plan gratuito).', points: '+40' },
+  { code: 'whitelisted-path / whitelisted-ua', meaning: 'Excluida del análisis (ruta o User-Agent de confianza).', points: 'puntuación 0' },
+  { code: 'blocklist:<origen>', meaning: 'Estaba en la lista de bloqueo (manual, auto, telegram o honeypot).', points: 'bot (100)' },
+  { code: 'rule:<nombre>', meaning: 'Superó una regla de frecuencia por IP.', points: 'bot (100)' },
+  { code: 'watch:<nombre>', meaning: 'Superó una regla por UA, ASN o global. Solo aviso: no marca como bot.', points: 'informativo' },
+];
+
+const toc = [
+  ['guia', 'Guía rápida'],
+  ['funcionamiento', 'Cómo funciona'],
+  ['niveles', 'Niveles'],
+  ['mantenimiento', 'Mantenimiento'],
+  ['conexion', 'Tu conexión'],
+  ['bloqueo', 'Listas'],
+  ['reglas', 'Reglas'],
+  ['autoban', 'Auto-baneo'],
+  ['alertas', 'Alertas'],
+  ['actividad', 'Actividad'],
+  ['datos', 'Datos'],
+  ['glosario', 'Glosario'],
+];
+---
+<Panel title="Ayuda de la defensa — Panel" active="ayuda">
+  <main>
+    <div class="topbar">
+      <div>
+        <a href="/panel/defensa" class="back">← Estado y niveles</a>
+        <h1>Ayuda de la defensa</h1>
+      </div>
+    </div>
+    <p class="lead">Qué hace cada ajuste del panel de defensa y cuándo conviene tocarlo. Todo está pensado para <strong>consulta rápida</strong>: empieza por la guía de situaciones y baja al detalle solo cuando lo necesites.</p>
+
+    <nav class="chips" aria-label="En esta página">
+      {toc.map(([id, label]) => <a href={`#${id}`}>{label}</a>)}
+    </nav>
+
+    <!-- Guía rápida -->
+    <section class="card" id="guia">
+      <h2>Guía rápida: qué hacer en cada situación</h2>
+      <div class="guide">
+        {guide.map((g) => (
+          <article class="guide-row">
+            <h3>{g.situation}</h3>
+            <p class="signal">{g.signal}</p>
+            <p set:html={g.action}></p>
+          </article>
+        ))}
+      </div>
+    </section>
+
+    <!-- Cómo funciona -->
+    <section class="card" id="funcionamiento">
+      <h2>Cómo funciona, en 30 segundos</h2>
+      <ol class="steps">
+        <li>Cada visita pasa primero por el módulo de <strong>defensa</strong> y después por el <strong>detector de bots</strong>, que le da una puntuación de 0 a 100: <strong>50 o más = bot</strong>.</li>
+        <li>El orden de decisión es: <strong>lista blanca → mantenimiento → lista de bloqueo → reglas de frecuencia</strong>. La primera que aplique manda.</li>
+        <li>Por defecto <strong>solo se marca</strong>. Bloquear (403/429) o poner mantenimiento (503) exige subir el nivel de defensa.</li>
+        <li><code>/panel</code>, su API y el webhook de Telegram <strong>nunca se bloquean</strong>: siempre puedes deshacer un error.</li>
+        <li>Los cambios del panel pueden tardar <strong>hasta ~60 segundos</strong> en llegar a todo el sitio.</li>
+        <li>Si la base de datos falla o faltan las tablas, la defensa <strong>deja pasar</strong> las visitas (nunca te deja sin blog).</li>
+      </ol>
+    </section>
+
+    {sections.map((s) => (
+      <section class="card" id={s.id}>
+        <h2>{s.title}</h2>
+        <p class="intro" set:html={s.intro}></p>
+        {s.items.map((it) => (
+          <article class="help-item">
+            <h3>{it.name}{it.tag && <span class="tag">{it.tag}</span>}</h3>
+            <div class="cols">
+              <div>
+                <h4>Qué hace</h4>
+                <ul>{it.what.map((w) => <li set:html={w}></li>)}</ul>
+              </div>
+              <div>
+                <h4>Cuándo actuar</h4>
+                <ul>{it.when.map((w) => <li set:html={w}></li>)}</ul>
+              </div>
+            </div>
+            {it.careful && (
+              <div class="careful">
+                <h4>Ojo con</h4>
+                <ul>{it.careful.map((w) => <li set:html={w}></li>)}</ul>
+              </div>
+            )}
+          </article>
+        ))}
+      </section>
+    ))}
+
+    <!-- Glosario -->
+    <section class="card" id="glosario">
+      <h2>Glosario: por qué se marcó una visita como bot</h2>
+      <p class="intro">En <strong>Visitas</strong>, pasa el ratón por la etiqueta «bot» para ver la puntuación y los motivos. Las puntuaciones se suman; con <strong>50 o más</strong> la visita se clasifica como bot. También aparecen en el export de visitas (campo <code>bot_reasons</code>).</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Motivo</th><th>Significa</th><th>Puntos</th></tr></thead>
+          <tbody>
+            {reasons.map((r) => (
+              <tr><td><code>{r.code}</code></td><td>{r.meaning}</td><td class="nowrap">{r.points}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Valores por defecto -->
+    <section class="card" id="defaults">
+      <h2>Valores por defecto de un vistazo</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Ajuste</th><th>Valor</th></tr></thead>
+          <tbody>
+            <tr><td>Nivel de defensa</td><td>0 (solo marcar)</td></tr>
+            <tr><td>Reglas de frecuencia</td><td>Ráfaga por IP 30/60 s en <code>/blog/*</code> con baneo de 15 min · Mismo UA 20/60 s (aviso) · Presión global 300/60 s (aviso)</td></tr>
+            <tr><td>Auto-baneo</td><td>Activado · 5 visitas bot en 10 min · 24 horas</td></tr>
+            <tr><td>Alertas</td><td>Ráfaga 30/60 s · Oleada 40/5 min · Espera 30 min · Escalada automática desactivada · Aviso de cambios activado</td></tr>
+            <tr><td>Modo lite</td><td>Desactivado</td></tr>
+            <tr><td>Poda automática</td><td>Desactivada</td></tr>
+            <tr><td>Caché de ajustes</td><td>Hasta ~60 s de retraso en aplicarse</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</Panel>
+
+<style>
+  main { max-width: 920px; margin: 0 auto; padding: 2rem 1.5rem 5rem; }
+  .topbar { margin-bottom: 1rem; }
+  .back { font-size: .85rem; color: var(--color-muted); text-decoration: none; }
+  .back:hover { color: var(--color-text); }
+  h1 { font-family: var(--font-display); font-size: 2rem; font-weight: 400; letter-spacing: -0.02em; margin: .2rem 0 0; }
+  .lead { color: var(--color-muted); line-height: 1.65; margin: 0 0 1.2rem; max-width: 70ch; }
+  code { font-size: .82rem; background: var(--color-row-hover); padding: .1rem .35rem; border-radius: 4px; word-break: break-word; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: .45rem; margin-bottom: 1.6rem; }
+  .chips a { font-size: .8rem; color: var(--color-muted); text-decoration: none; padding: .3rem .75rem; border: 1px solid var(--color-border); border-radius: 99px; transition: color .15s, border-color .15s; }
+  .chips a:hover { color: var(--color-text); border-color: var(--color-text); }
+
+  .card { scroll-margin-top: 1rem; border: 1px solid var(--color-border); border-radius: 12px; padding: 1.4rem 1.5rem; margin-bottom: 1.25rem; }
+  h2 { font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--color-muted); margin: 0 0 1rem; }
+  .intro { margin: 0 0 1.2rem; font-size: .9rem; line-height: 1.65; }
+
+  .guide { display: grid; gap: .9rem; }
+  .guide-row { border: 1px solid var(--color-border); border-radius: 10px; padding: .95rem 1.1rem; }
+  .guide-row h3 { font-size: 1rem; font-weight: 600; margin: 0 0 .3rem; }
+  .guide-row p { margin: 0 0 .5rem; font-size: .88rem; line-height: 1.6; }
+  .guide-row p:last-child { margin-bottom: 0; }
+  .signal { color: var(--color-muted); }
+
+  .steps { margin: 0; padding-left: 1.2rem; display: grid; gap: .55rem; font-size: .9rem; line-height: 1.6; }
+
+  .help-item { padding: 1.1rem 0; border-top: 1px solid var(--color-border); }
+  .help-item:first-of-type { border-top: 0; padding-top: .2rem; }
+  .help-item h3 { font-size: 1.02rem; font-weight: 600; margin: 0 0 .7rem; display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
+  .tag { font-size: .68rem; font-weight: 600; padding: .15rem .55rem; border-radius: 99px; background: var(--color-row-hover); color: var(--color-muted); }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; }
+  @media (max-width: 720px) { .cols { grid-template-columns: 1fr; } }
+  h4 { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--color-muted); margin: 0 0 .4rem; }
+  ul { margin: 0; padding-left: 1.1rem; display: grid; gap: .35rem; font-size: .88rem; line-height: 1.6; }
+  .careful { margin-top: .9rem; padding: .75rem 1rem; border-radius: 8px; background: #fef3c7; color: #92400e; }
+  .careful h4 { color: inherit; }
+  html[data-theme='dark'] .careful { background: #451a03; color: #fcd34d; }
+
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+  th { text-align: left; font-weight: 500; padding: .6rem .7rem; border-bottom: 2px solid var(--color-border); color: var(--color-muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; white-space: nowrap; }
+  td { padding: .65rem .7rem; border-bottom: 1px solid var(--color-border); vertical-align: top; line-height: 1.5; }
+  tr:hover td { background: var(--color-row-hover); }
+  .nowrap { white-space: nowrap; }
+</style>

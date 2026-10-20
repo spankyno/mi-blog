@@ -144,7 +144,10 @@ const inMaintenance = level === 3;
   <main>
     <div class="topbar">
       <h1>Defensa</h1>
-      <span class={`chip lv-${level}`} id="level-chip">Nivel {level} · {LEVELS[level].name}{!enabled ? ' (desactivada)' : ''}</span>
+      <span class="topbar-right">
+        <a href="/panel/defensa/ayuda" class="help-link">¿Dudas? Ver ayuda</a>
+        <span class={`chip lv-${level}`} id="level-chip">Nivel {level} · {LEVELS[level].name}{!enabled ? ' (desactivada)' : ''}</span>
+      </span>
     </div>
 
     {missingTables && (
@@ -674,6 +677,9 @@ const inMaintenance = level === 3;
   .small { font-size: .8rem; }
   .lag { font-size: .8rem; color: var(--color-muted); margin: 0 0 1.5rem; }
 
+  .topbar-right { display: flex; align-items: center; gap: .9rem; flex-wrap: wrap; }
+  .help-link { font-size: .82rem; color: var(--color-muted); text-decoration: underline; text-underline-offset: 3px; }
+  .help-link:hover { color: var(--color-text); }
   .chip { font-size: .78rem; font-weight: 600; padding: .3rem .8rem; border-radius: 99px; }
   .lv-0 { --lv-bg:#d1fae5; --lv-fg:#065f46; --lv-bd:#6ee7b7; }
   .lv-1 { --lv-bg:#e0f2fe; --lv-fg:#075985; --lv-bd:#7dd3fc; }

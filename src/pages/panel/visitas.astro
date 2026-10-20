@@ -48,8 +48,10 @@ if (db) {
     query += ` ORDER BY viewed_at DESC LIMIT ?`;
     params.push(limit);
 
+    // Con puntuación y motivo (columnas de la migración 0002); si aún no existen, sin ellos.
+    const withReasons = query.replace('is_bot FROM', 'is_bot, bot_score, bot_reasons FROM');
     const [rVisitas, rTotal] = await Promise.all([
-      db.prepare(query).bind(...params).all(),
+      db.prepare(withReasons).bind(...params).all().catch(() => db.prepare(query).bind(...params).all()),
       db.prepare(countQuery).bind(...countParams).first(),
     ]);
 
@@ -147,7 +149,7 @@ const countryNames: Record<string, string> = {
                 <td>{v.city ?? '—'}</td>
                 <td class="td-ip">{v.ip ?? '—'}</td>
                 <td class="td-ref" title={v.referer ?? ''}>{v.referer ?? '—'}</td>
-                <td>{v.is_bot ? <span class="badge-bot">bot</span> : '—'}</td>
+                <td>{v.is_bot ? <span class="badge-bot" title={v.bot_reasons ? `Puntuación ${v.bot_score ?? '?'} · ${v.bot_reasons}` : (v.bot_score ? `Puntuación ${v.bot_score}` : 'Marcada como bot')}>bot</span> : '—'}</td>
                 <td class="td-ua" title={v.user_agent ?? ''}>{v.user_agent ?? '—'}</td>
               </tr>
             ))}
