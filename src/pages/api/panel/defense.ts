@@ -15,6 +15,7 @@ import {
   getSetting,
   logEvent,
   removeAllow,
+  resetDefenseConfig,
   removeBlock,
   saveRule,
   seedDefaultRules,
@@ -39,6 +40,7 @@ import {
 //   set_lite         { enabled }
 //   set_auto_purge   { enabled }
 //   purge_now        {}
+//   reset_config     {}                          (ajustes y reglas a valores de fábrica; no toca listas)
 //   set_alerts       { enabled, ip_per_min, wave_5min, cooldown_min, auto_escalate, notify_changes }
 //   telegram_test / telegram_set_webhook / telegram_webhook_info
 
@@ -255,6 +257,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
         await logEvent(db, 'purge', myIp, `Poda manual: ${total} filas (bots ${r.botViews}, humanas ${r.humanViews}, bot_ips ${r.botIps}, eventos ${r.events}, horas ${r.hourly}, bloqueos caducados ${r.expiredBlocks})`);
         invalidateState();
         return json({ ok: true, purged: r });
+      }
+
+      case 'reset_config': {
+        await resetDefenseConfig(db);
+        await logEvent(db, 'reset', myIp, 'Configuración restablecida a los valores por defecto (listas y datos intactos)');
+        notify(`♻️ <b>Configuración de defensa restablecida</b> a los valores por defecto desde el panel (IP <code>${esc(myIp ?? '?')}</code>).`);
+        break;
       }
 
       case 'set_alerts': {
