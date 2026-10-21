@@ -55,6 +55,11 @@ const guide: { situation: string; signal: string; action: string }[] = [
     action: 'Ni el mantenimiento ayuda del todo: cada petición, aunque se rechace, cuenta como invocación. Solo un dominio propio con WAF o Bot Fight Mode puede cortarlo antes de llegar al Worker.',
   },
   {
+    situation: 'Has probado muchas cosas y quieres volver a empezar',
+    signal: 'Umbrales, reglas o interruptores que ya no recuerdas cómo estaban.',
+    action: 'Usa <strong>Restablecer configuración</strong> (al final de la página de defensa): vuelve a los valores de fábrica sin tocar las listas de bloqueo y blanca.',
+  },
+  {
     situation: 'No te llegan alertas, o los botones de Telegram no responden',
     signal: 'Silencio en Telegram durante un ataque, o botones que no hacen nada.',
     action: 'Comprueba que el botón de la barra lateral dice <strong>Telegram ✓</strong>, que las alertas están activas, y usa <strong>Enviar alerta de prueba</strong>. Si los botones no responden: <strong>Registrar webhook</strong> y luego <strong>Comprobar webhook</strong>.',
@@ -424,7 +429,7 @@ const sections: Section[] = [
         name: 'Ráfaga (visitas/60 s)',
         tag: 'Por defecto: 30',
         what: [
-          'Avisa cuando una IP (IPv6: un /64) supera ese número de visitas en 60 segundos, en cualquier ruta.',
+          'Avisa cuando una IP (IPv6: un /64) supera ese número de visitas en 60 segundos, en <strong>cualquier ruta</strong> (portada, listado, artículos, formularios…).',
           'No avisa de IPs de la lista blanca ni durante el mantenimiento.',
         ],
         when: ['Sube el valor si recibes avisos que no son ataques; bájalo si se te escapan ráfagas.'],
@@ -434,6 +439,21 @@ const sections: Section[] = [
         tag: 'Por defecto: 40',
         what: ['Avisa cuando se acumulan más de ese número de visitas de bots en 5 minutos, vengan de las IPs que vengan (incluye las marcadas por listas y reglas, y los bots declarados).'],
         when: ['Para detectar ataques distribuidos que no se concentran en una sola IP.'],
+      },
+      {
+        name: 'Qué dice el mensaje de alerta',
+        what: [
+          '<strong>Ráfaga:</strong> IP (o /64), país y red; número de visitas en 60 s frente al umbral; <strong>páginas más visitadas</strong> con cuántas peticiones a cada una; <strong>primera y última petición en hora de Madrid</strong>; navegador (User-Agent, recortado); y el nivel actual.',
+          '<strong>Oleada:</strong> número de visitas de bots en 5 minutos y la hora de Madrid del aviso.',
+          'Cada alerta también queda en el <strong>Registro de eventos</strong> con las páginas principales.',
+        ],
+        when: [
+          'Léelo antes de pulsar un botón: rutas raras (<code>/wp-login.php</code>, <code>/.env</code>…) o un navegador falso apuntan a un bot; una sola página repetida apunta a un scraper.',
+        ],
+        careful: [
+          'En <strong>Visitas</strong> solo se registran las visitas a artículos: la portada y otras páginas cuentan para la alerta pero no aparecen allí. Por eso el detalle del mensaje y el Registro de eventos son los que dejan constancia.',
+          'El detalle de páginas se calcula en el servidor que detectó la ráfaga y es aproximado.',
+        ],
       },
       {
         name: 'Espera (min)',
@@ -503,7 +523,7 @@ const sections: Section[] = [
       },
       {
         name: 'Barras por hora',
-        what: ['Cada barra es una hora (en UTC); su altura suma lo marcado, bloqueado, limitado y respondido en mantenimiento. El detalle aparece al pasar el ratón.'],
+        what: ['Cada barra es una hora, en <strong>hora de Madrid</strong> (el eje inferior marca una de cada tres); su altura suma lo marcado, bloqueado, limitado y respondido en mantenimiento. El detalle aparece al pasar el ratón.'],
         when: ['Para ver cuándo empezó un ataque y si tu cambio de nivel lo frenó.'],
       },
       {
@@ -522,7 +542,8 @@ const sections: Section[] = [
       {
         name: 'IPs más activas',
         what: [
-          'Las IPs con más visitas en las últimas 24 horas, con cuántas fueron de bot.',
+          'Las IPs con más visitas registradas en las últimas 24 horas, con la <strong>última visita en hora de Madrid</strong> y la etiqueta «bot» (igual que en Visitas) si alguna de sus visitas se marcó como bot; al pasar el ratón ves cuántas.',
+          'Solo cuenta las visitas registradas (artículos): una IP que solo pida la portada no aparece aquí.',
           '<strong>Permitir</strong> la añade a la lista blanca; <strong>Bloquear</strong> la añade a la lista de bloqueo 24 h (en IPv6, su /64 completo).',
         ],
         when: ['Tras una alerta: es la forma más rápida de actuar sobre el culpable.'],
@@ -551,6 +572,20 @@ const sections: Section[] = [
         tag: 'Por defecto: desactivada',
         what: ['Borra los datos antiguos una vez al día, aprovechando una visita al sitio (no hay cron). No avisa.'],
         when: ['Cuando ya estés conforme con la retención y no quieras acordarte de limpiar a mano.'],
+      },
+      {
+        name: 'Restablecer configuración',
+        what: [
+          'Devuelve la defensa a sus valores de fábrica: <strong>nivel 0</strong>, interruptor maestro activado, modo lite, poda automática y escalada automática desactivados, umbrales de alertas y de auto-baneo por defecto, mensaje de mantenimiento por defecto y las <strong>3 reglas originales</strong>.',
+          'Se hace de una sola vez: o se aplica entero o no se aplica nada.',
+          '<strong>No toca</strong> la lista de bloqueo, la lista blanca, el registro de eventos, las visitas ni el botón general «Telegram ✓/✗».',
+          'Si el sitio estaba en mantenimiento, lo reabre. Queda anotado en el registro de eventos.',
+        ],
+        when: [
+          'Tras muchas pruebas, cuando no recuerdas cómo estaba algo.',
+          'Si un ajuste está dando resultados raros y quieres descartar la configuración como causa.',
+        ],
+        careful: ['Las reglas que hayas creado o editado se pierden. Si quieres conservar alguna, apúntala antes.'],
       },
       {
         name: 'Registro de eventos',
