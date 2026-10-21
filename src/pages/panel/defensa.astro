@@ -56,7 +56,7 @@ if (db) {
     guard(db.prepare(`SELECT id, kind, value, note, created_at FROM allow_list ORDER BY created_at DESC LIMIT 100`).all(), { results: [] } as any),
     guard(db.prepare(`SELECT ts, type, ip, detail FROM defense_events ORDER BY id DESC LIMIT 15`).all(), { results: [] } as any),
     guard(db.prepare(`SELECT hour, flagged, limited, blocked, maint FROM defense_hourly WHERE hour >= ?`).bind(sinceHour).all(), { results: [] } as any),
-    guard(db.prepare(`SELECT ip, COUNT(*) AS n, SUM(is_bot) AS bots, MAX(country) AS country FROM page_views WHERE viewed_at >= ? GROUP BY ip ORDER BY n DESC LIMIT 12`).bind(sinceIso).all(), { results: [] } as any),
+    guard(db.prepare(`SELECT ip, COUNT(*) AS n, SUM(is_bot) AS bots, MAX(country) AS country, MAX(viewed_at) AS last_at FROM page_views WHERE viewed_at >= ? GROUP BY ip ORDER BY n DESC LIMIT 12`).bind(sinceIso).all(), { results: [] } as any),
     guard(db.prepare(`SELECT COUNT(*) AS views, COALESCE(SUM(is_bot),0) AS bots FROM page_views WHERE viewed_at >= ?`).bind(sinceIso).first(), null as any),
     guard(db.prepare(`SELECT COUNT(*) AS n FROM bot_ips`).first(), null as any),
     guard(db.prepare(`SELECT id, name, enabled, scope, path_pattern, max_hits, window_s, action, ban_minutes FROM defense_rules ORDER BY id`).all(), { results: [] } as any),
@@ -123,18 +123,24 @@ const scopeLabel: Record<string, string> = { ip: 'Por IP', ua: 'Mismo UA', asn: 
 const actionLabel: Record<string, string> = { flag: 'Marcar', limit: '429', ban: '429 + baneo' };
 
 // Barras de las últimas 24 horas
-const hours: { key: string; label: string; total: number; flagged: number; blocked: number; maint: number }[] = [];
+const madridHM = (isoHour: string) =>
+  new Date(isoHour + ':00:00Z').toLocaleTimeString('es-ES', { timeZone: 'Europe/Madrid', hour: '2-digit', minute: '2-digit', hour12: false });
+const madridNow = new Date(nowMs).toLocaleString('es-ES', { timeZone: 'Europe/Madrid', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).replace(',', '');
+const hours: { key: string; label: string; short: string; total: number; flagged: number; blocked: number; maint: number }[] = [];
 for (let i = 23; i >= 0; i--) {
   const key = new Date(nowMs - i * 3600_000).toISOString().slice(0, 13);
   const h = hourly[key] ?? {};
   const flagged = h.flagged ?? 0, blocked = (h.blocked ?? 0) + (h.limited ?? 0), maint = h.maint ?? 0;
-  hours.push({ key, label: key.slice(11) + ':00 UTC', total: flagged + blocked + maint, flagged, blocked, maint });
+  const hm = madridHM(key);
+  hours.push({ key, label: `${hm} (Madrid)`, short: hm.slice(0, 2) + 'h', total: flagged + blocked + maint, flagged, blocked, maint });
 }
 const maxHour = Math.max(1, ...hours.map((h) => h.total));
 const sum = (k: 'flagged' | 'blocked' | 'maint') => hours.reduce((a, h) => a + h[k], 0);
 
 const fmt = (iso?: string | null) =>
   iso ? new Date(iso).toLocaleString('es-ES', { timeZone: 'Europe/Madrid', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
+const fmtSec = (iso?: string | null) =>
+  iso ? new Date(iso).toLocaleString('es-ES', { timeZone: 'Europe/Madrid', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) : '—';
 const isExpired = (iso?: string | null) => !!iso && Date.parse(iso) < nowMs;
 const kindLabel: Record<string, string> = { ip: 'IP', cidr: 'Rango', asn: 'ASN', country: 'País' };
 const levelKeys = [0, 1, 2, 3] as DefenseLevel[];
@@ -395,7 +401,7 @@ const inMaintenance = level === 3;
 
     <!-- Actividad -->
     <section id="actividad" class="card">
-      <h2>Actividad (últimas 24 h)</h2>
+      <h2>Actividad (últimas 24 h · hora de Madrid)</h2>
       <div class="bars" aria-label="Acciones de defensa por hora">
         {hours.map((h) => (
           <div class="bar-col" title={`${h.label}: ${h.flagged} marcadas · ${h.blocked} bloqueadas · ${h.maint} en mantenimiento`}>
@@ -403,7 +409,10 @@ const inMaintenance = level === 3;
           </div>
         ))}
       </div>
-      <p class="muted small">Cada barra es una hora (UTC). Solo cuenta lo que gestiona el módulo de defensa.</p>
+      <div class="bar-axis" aria-hidden="true">
+        {hours.map((h, i) => <span>{i % 3 === 0 ? h.short : ''}</span>)}
+      </div>
+      <p class="muted small">Cada barra es una hora, en hora de Madrid (ahora: {madridNow}). Solo cuenta lo que gestiona el módulo de defensa.</p>
 
       <h3>Uso estimado de cuota gratuita (24 h)</h3>
       <div class="quota">
@@ -419,24 +428,26 @@ const inMaintenance = level === 3;
       <h3>IPs más activas</h3>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>IP</th><th>País</th><th class="num">Visitas</th><th class="num">Bot</th><th></th></tr></thead>
+          <thead><tr><th>IP</th><th>País</th><th class="num">Visitas</th><th>Última (Madrid)</th><th>Bot</th><th></th></tr></thead>
           <tbody>
             {topIps.map((r) => (
               <tr>
                 <td><code>{r.ip}</code></td>
                 <td class="muted">{r.country ?? '—'}</td>
                 <td class="num">{r.n}</td>
-                <td class="num">{r.bots ?? 0}</td>
+                <td class="muted nowrap">{fmtSec(r.last_at)}</td>
+                <td>{(r.bots ?? 0) > 0 ? <span class="badge-bot" title={`${r.bots} de ${r.n} visitas marcadas como bot`}>bot</span> : '—'}</td>
                 <td class="right actions">
                   <button class="btn-sm" data-act="quick-allow" data-ip={r.ip}>Permitir</button>
                   <button class="btn-sm danger" data-act="quick-block" data-ip={r.ip}>Bloquear</button>
                 </td>
               </tr>
             ))}
-            {topIps.length === 0 && <tr><td colspan="5" class="empty">Sin visitas en las últimas 24 h.</td></tr>}
+            {topIps.length === 0 && <tr><td colspan="6" class="empty">Sin visitas en las últimas 24 h.</td></tr>}
           </tbody>
         </table>
       </div>
+      <p class="muted small" style="margin:.7rem 0 0">Solo cuenta las visitas registradas, que son las de los artículos. La portada y otras páginas no se registran, pero sí cuentan para las alertas (el mensaje de Telegram indica qué páginas se visitaron).</p>
     </section>
 
     <!-- Mantenimiento de datos -->
@@ -463,6 +474,16 @@ const inMaintenance = level === 3;
         <input type="checkbox" id="autopurge-toggle" checked={autoPurge} />
         <span><strong>Poda automática diaria</strong> — borra lo anterior una vez al día, sin avisar, aprovechando una visita al sitio (sin cron). Desactivada por defecto.{lastPurge ? ` Última ejecución: ${lastPurge}.` : ''}</span>
       </label>
+    </section>
+
+    <!-- Restablecer -->
+    <section id="restablecer" class="card">
+      <h2>Restablecer configuración</h2>
+      <p class="muted">Devuelve la defensa a sus valores de fábrica: <strong>nivel 0</strong> (y fin del mantenimiento si estaba activo), interruptor maestro activado, modo lite, poda automática y escalada automática desactivados, umbrales de alertas y de auto-baneo por defecto, mensaje de mantenimiento por defecto y las <strong>3 reglas de frecuencia</strong> originales (las que hayas creado o editado se pierden).</p>
+      <p class="muted">No toca: la lista de bloqueo, la lista blanca, el registro de eventos, las visitas ni el botón general de Telegram.</p>
+      <div class="row">
+        <button class="btn danger" data-act="reset-config">Restablecer configuración</button>
+      </div>
     </section>
 
     <!-- Eventos -->
@@ -573,6 +594,8 @@ const inMaintenance = level === 3;
       run('remove_block', { id: Number(t.dataset.id) }, 'Entrada eliminada', '¿Quitar esta entrada de la lista de bloqueo?');
     } else if (act === 'rm-allow') {
       run('remove_allow', { id: Number(t.dataset.id) }, 'Entrada eliminada', '¿Quitar esta entrada de la lista blanca?');
+    } else if (act === 'reset-config') {
+      run('reset_config', {}, 'Configuración restablecida', 'Se restablecerá TODA la configuración de la defensa (nivel, interruptores, umbrales y reglas) a los valores por defecto.\n\nSi el sitio estaba en mantenimiento, se reabrirá. Las listas de bloqueo y blanca no se tocan.\n\n¿Continuar?');
     } else if (act === 'tg-test') {
       tgCall('telegram_test', 'Enviando…').then((r) => { if (r.ok) setTgStatus('✅ Mensaje de prueba enviado: revisa Telegram.'); });
     } else if (act === 'tg-register') {
@@ -774,6 +797,11 @@ const inMaintenance = level === 3;
   .bar-col { flex: 1; height: 100%; display: flex; align-items: flex-end; }
   .bar { width: 100%; background: var(--color-text); opacity: .75; border-radius: 3px 3px 0 0; min-height: 2px; }
   .bar-col:hover .bar { opacity: 1; }
+  .bar-axis { display: flex; gap: 3px; margin-top: .25rem; }
+  .bar-axis span { flex: 1; font-size: .62rem; color: var(--color-muted); white-space: nowrap; overflow: visible; font-variant-numeric: tabular-nums; }
+  .badge-bot { font-size: 0.68rem; background: #fef3c7; color: #92400e; padding: 0.1rem 0.45rem; border-radius: 99px; font-weight: 500; }
+  html[data-theme='dark'] .badge-bot { background: #451a03; color: #fcd34d; }
+  .nowrap { white-space: nowrap; }
 
   .quota { display: grid; gap: 1rem; }
   .quota-row { display: grid; gap: .35rem; }
