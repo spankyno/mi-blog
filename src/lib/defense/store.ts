@@ -328,3 +328,67 @@ export async function seedDefaultRules(db: DB): Promise<boolean> {
   for (const r of DEFAULT_RULES) await saveRule(db, r);
   return true;
 }
+
+
+// ── Restablecer configuración ───────────────────────────────────────────────
+
+/**
+ * Valores por defecto de los ajustes de la defensa. `null` = borrar la fila y que
+ * valga el valor interno (p. ej. el mensaje de mantenimiento por defecto).
+ * No incluye `telegram_enabled` (es el botón general de Telegram del panel) ni las
+ * marcas internas de «último aviso» / «última poda».
+ */
+export function defaultSettings(): Record<string, string | null> {
+  return {
+    defense_enabled: '1',
+    defense_level: '0',
+    defense_prev_level: '0',
+    maintenance_message: null,
+    maintenance_eta: null,
+    defense_lite_skip_logging: '0',
+    defense_auto_ban: AUTOBAN_DEFAULTS.enabled ? '1' : '0',
+    defense_autoban_hits: String(AUTOBAN_DEFAULTS.hits),
+    defense_autoban_window_min: String(AUTOBAN_DEFAULTS.windowMin),
+    defense_autoban_hours: String(AUTOBAN_DEFAULTS.hours),
+    defense_auto_purge: '0',
+    defense_alerts_enabled: ALERT_DEFAULTS.enabled ? '1' : '0',
+    defense_alert_ip_per_min: String(ALERT_DEFAULTS.ipPerMin),
+    defense_alert_wave_5min: String(ALERT_DEFAULTS.wave5min),
+    defense_alert_cooldown_min: String(ALERT_DEFAULTS.cooldownMin),
+    defense_auto_escalate: ALERT_DEFAULTS.autoEscalate ? '1' : '0',
+    defense_notify_changes: ALERT_DEFAULTS.notifyChanges ? '1' : '0',
+  };
+}
+
+/**
+ * Devuelve la configuración a sus valores de fábrica: ajustes (nivel, interruptores,
+ * umbrales, mantenimiento…) y reglas de frecuencia (se borran y se recrean las 3 por
+ * defecto). NO toca las listas de bloqueo y blanca, el registro de eventos ni las visitas.
+ * Todo en un único lote: o se aplica entero o no se aplica.
+ */
+export async function resetDefenseConfig(db: DB): Promise<void> {
+  const stmts: any[] = [];
+  for (const [key, value] of Object.entries(defaultSettings())) {
+    if (value === null) {
+      stmts.push(db.prepare(`DELETE FROM settings WHERE key = ?`).bind(key));
+    } else {
+      stmts.push(
+        db
+          .prepare(`INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
+          .bind(key, value)
+      );
+    }
+  }
+  stmts.push(db.prepare(`DELETE FROM defense_rules`));
+  for (const r of DEFAULT_RULES) {
+    stmts.push(
+      db
+        .prepare(
+          `INSERT INTO defense_rules (name, enabled, scope, path_pattern, max_hits, window_s, action, ban_minutes)
+           VALUES (?, 1, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(r.name, r.scope, r.pathPattern, r.maxHits, r.windowS, r.action, r.banMinutes)
+    );
+  }
+  await db.batch(stmts);
+}

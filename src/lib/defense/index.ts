@@ -102,6 +102,7 @@ export async function defend({ request, locals }: Ctx): Promise<DefenseOutcome> 
     }
 
     const ip = parseIp(request.headers.get('cf-connecting-ip'));
+    const pathname = new URL(request.url).pathname;
     const cf = runtime?.cf;
     const asn = typeof cf?.asn === 'number' ? cf.asn : null;
     const subject = {
@@ -131,11 +132,11 @@ export async function defend({ request, locals }: Ctx): Promise<DefenseOutcome> 
 
     // 2b. Alerta de ráfaga: una IP (o /64) supera N visitas en 60 s.
     if (ip && state.alerts.enabled && waitUntil) {
-      const burst = ipBurst(state, ip);
+      const burst = ipBurst(state, ip, { path: pathname, ua: request.headers.get('user-agent') });
       if (burst !== null) {
         waitUntil(
           sendAlert({
-            kind: 'ip', db, env, state, count: burst, ip,
+            kind: 'ip', db, env, state, count: burst.count, trail: burst.trail, ip,
             geo: { country: subject.country, asn, org: cf?.asOrganization ?? null },
           })
         );
@@ -159,7 +160,7 @@ export async function defend({ request, locals }: Ctx): Promise<DefenseOutcome> 
     // 4. Reglas de frecuencia («X visitas cada Y tiempo»), en memoria.
     const ua = request.headers.get('user-agent');
     if (state.rules.length > 0 && !isVerifiedSearchCrawler(ua, asn)) {
-      const path = new URL(request.url).pathname;
+      const path = pathname;
       const ipUnit = ip ? subjectOf(ip).value : null;
       let enforce: Rule | null = null;
       let ruleFlagged = false;

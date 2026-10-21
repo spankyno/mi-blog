@@ -26,10 +26,65 @@ export function unitOf(ip: ParsedIp): string {
   return ip.family === 6 ? ipv6Slash64(ip)! : ip.text;
 }
 
-/** Registra una visita de esa IP; devuelve el nº de visitas/60 s si supera el umbral. */
-export function ipBurst(state: DefenseState, ip: ParsedIp): number | null {
-  const n = hit(`alert|ip|${unitOf(ip)}`, 60_000);
-  return n > state.alerts.ipPerMin ? Math.round(n) : null;
+/** Qué ha hecho una IP en el último minuto (en memoria de este servidor). */
+export interface Trail {
+  first: number;                 // primera petición de la racha (ms)
+  last: number;                  // última petición (ms)
+  paths: Map<string, number>;    // ruta → nº de peticiones
+  ua: string;                    // User-Agent (recortado)
+}
+
+const trails = new Map<string, Trail>();
+const MAX_TRAILS = 2000;
+const MAX_PATHS_PER_TRAIL = 12;
+
+/** Fecha y hora en Madrid, p. ej. «20/10/2026 14:33:07». */
+export function madridTime(ms: number): string {
+  return new Date(ms).toLocaleString('es-ES', {
+    timeZone: 'Europe/Madrid',
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+  }).replace(',', '');
+}
+
+function recordTrail(unit: string, path: string, ua: string | null, now: number): Trail {
+  let t = trails.get(unit);
+  if (!t || now - t.last > 60_000) {
+    if (trails.size >= MAX_TRAILS) trails.clear();
+    t = { first: now, last: now, paths: new Map(), ua: '' };
+    trails.set(unit, t);
+  }
+  t.last = now;
+  const key = t.paths.has(path) || t.paths.size < MAX_PATHS_PER_TRAIL ? path : '(otras rutas)';
+  t.paths.set(key, (t.paths.get(key) ?? 0) + 1);
+  if (!t.ua && ua) t.ua = ua.slice(0, 120);
+  return t;
+}
+
+/** «/blog/x ×12, / ×10, …» con las rutas más visitadas (ya escapado para Telegram HTML). */
+export function topPathsText(t: Trail, max = 4): string {
+  return [...t.paths.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, max)
+    .map(([p, n]) => `<code>${esc(p.length > 60 ? p.slice(0, 57) + '…' : p)}</code> ×${n}`)
+    .join(', ');
+}
+
+/**
+ * Registra una visita de esa IP; si supera el umbral de ráfaga, devuelve el nº de
+ * visitas/60 s y el rastro (páginas, hora y navegador) para detallar la alerta.
+ */
+export function ipBurst(
+  state: DefenseState,
+  ip: ParsedIp,
+  req?: { path: string; ua: string | null }
+): { count: number; trail?: Trail } | null {
+  const unit = unitOf(ip);
+  const now = Date.now();
+  const n = hit(`alert|ip|${unit}`, 60_000, now);
+  const trail = req ? recordTrail(unit, req.path, req.ua, now) : undefined;
+  return n > state.alerts.ipPerMin ? { count: Math.round(n), trail } : null;
 }
 
 /** Registra una visita de bot; devuelve el nº de visitas/5 min si supera el umbral. */
@@ -64,6 +119,7 @@ export async function sendAlert(a: {
   count: number;
   ip?: ParsedIp;
   geo?: { country?: string | null; asn?: number | null; org?: string | null };
+  trail?: Trail;
 }): Promise<void> {
   const { kind, db, env, state } = a;
   try {
@@ -105,9 +161,17 @@ export async function sendAlert(a: {
       lines.push('🚨 <b>Ráfaga desde una IP</b>', '─────────────────', `🔗 IP: <code>${esc(unitOf(a.ip))}</code>`);
       if (place) lines.push(`🌍 ${esc(place)}`);
       lines.push(`📈 ${a.count} visitas en 60 s (umbral ${state.alerts.ipPerMin})`);
+      if (a.trail && a.trail.paths.size > 0) {
+        lines.push(`📄 Páginas: ${topPathsText(a.trail)}`);
+        lines.push(`🕒 ${madridTime(a.trail.first)} → ${madridTime(a.trail.last).slice(11)} (hora de Madrid)`);
+        if (a.trail.ua) lines.push(`🖥 <code>${esc(a.trail.ua)}</code>`);
+      } else {
+        lines.push(`🕒 ${madridTime(now)} (hora de Madrid)`);
+      }
       keyboard = actionKeyboard(level, a.ip.text);
     } else {
       lines.push('🚨 <b>Oleada de bots</b>', '─────────────────', `📈 ${a.count} visitas de bots en 5 min (umbral ${state.alerts.wave5min})`);
+      lines.push(`🕒 ${madridTime(now)} (hora de Madrid)`);
       keyboard = actionKeyboard(level);
     }
     lines.push(levelLine(level));
@@ -115,7 +179,10 @@ export async function sendAlert(a: {
     if (state.alerts.cooldownMin) lines.push(`🔕 Próximo aviso de este tipo en ${state.alerts.cooldownMin} min como mínimo.`);
 
     await sendMessage(env, lines.join('\n'), keyboard);
-    await logEvent(db, 'alert', a.ip ? unitOf(a.ip) : null, `${kind === 'ip' ? 'Ráfaga' : 'Oleada'}: ${a.count}`);
+    const pagesDetail = a.trail && a.trail.paths.size > 0
+      ? ` · ${[...a.trail.paths.entries()].sort((x, y) => y[1] - x[1]).slice(0, 3).map(([p, n]) => `${p} ×${n}`).join(', ')}`
+      : '';
+    await logEvent(db, 'alert', a.ip ? unitOf(a.ip) : null, `${kind === 'ip' ? 'Ráfaga' : 'Oleada'}: ${a.count}${pagesDetail}`);
   } catch (e) {
     console.error('defense: error enviando alerta:', e);
   }
