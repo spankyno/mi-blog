@@ -1,6 +1,7 @@
 ---
 import Panel from '../../layouts/Panel.astro';
-import { LEVELS, DEFAULTS, AUTOBAN_DEFAULTS, ALERT_DEFAULTS, RETENTION, ENFORCEABLE_SCOPES, type DefenseLevel } from '../../lib/defense/config';
+import { LEVELS, DEFAULTS, AUTOBAN_DEFAULTS, ALERT_DEFAULTS, SCANNER_DEFAULTS, RETENTION, ENFORCEABLE_SCOPES, type DefenseLevel } from '../../lib/defense/config';
+import { SCANNER_RULE_SUMMARY } from '../../lib/defense/scanner';
 import { previewPurge, type PurgeCounts } from '../../lib/defense/purge';
 
 const db = Astro.locals.runtime?.env?.DB;
@@ -32,6 +33,8 @@ let purgeCounts: PurgeCounts = { botViews: 0, humanViews: 0, botIps: 0, events: 
 let autoEntries = 0;
 let scoredVisits: number | null = null;
 let alerts = { ...ALERT_DEFAULTS };
+let scanner = { enabled: SCANNER_DEFAULTS.enabled, hours: SCANNER_DEFAULTS.hours };
+let scannerEntries = 0;
 let telegramMuted = false;
 const env = (Astro.locals.runtime?.env ?? {}) as any;
 const tgConfigured = !!(env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID);
@@ -51,7 +54,7 @@ function guard<T>(p: Promise<T>, fallback: T): Promise<T> {
 
 if (db) {
   const [rSet, rBlocks, rAllows, rEvents, rHourly, rTop, rTotals, rHoney, rRules, rPurge, rScored] = await Promise.all([
-    guard(db.prepare(`SELECT key, value FROM settings WHERE key IN ('defense_enabled','defense_level','defense_prev_level','maintenance_message','maintenance_eta','defense_auto_ban','defense_autoban_hits','defense_autoban_window_min','defense_autoban_hours','defense_lite_skip_logging','defense_auto_purge','defense_last_purge','defense_alerts_enabled','defense_alert_ip_per_min','defense_alert_wave_5min','defense_alert_cooldown_min','defense_auto_escalate','defense_notify_changes','telegram_enabled')`).all(), { results: [] } as any),
+    guard(db.prepare(`SELECT key, value FROM settings WHERE key IN ('defense_enabled','defense_level','defense_prev_level','maintenance_message','maintenance_eta','defense_auto_ban','defense_autoban_hits','defense_autoban_window_min','defense_autoban_hours','defense_lite_skip_logging','defense_auto_purge','defense_last_purge','defense_alerts_enabled','defense_alert_ip_per_min','defense_alert_wave_5min','defense_alert_cooldown_min','defense_auto_escalate','defense_notify_changes','telegram_enabled','defense_login_alert_fails','defense_scanner_enabled','defense_scanner_hours')`).all(), { results: [] } as any),
     guard(db.prepare(`SELECT id, kind, value, reason, source, created_at, expires_at FROM blocked_ips ORDER BY created_at DESC LIMIT 200`).all(), { results: [] } as any),
     guard(db.prepare(`SELECT id, kind, value, note, created_at FROM allow_list ORDER BY created_at DESC LIMIT 100`).all(), { results: [] } as any),
     guard(db.prepare(`SELECT ts, type, ip, detail FROM defense_events ORDER BY id DESC LIMIT 15`).all(), { results: [] } as any),
@@ -101,7 +104,10 @@ if (db) {
     cooldownMin: num('defense_alert_cooldown_min', ALERT_DEFAULTS.cooldownMin),
     autoEscalate: set['defense_auto_escalate'] === '1',
     notifyChanges: set['defense_notify_changes'] !== '0',
+    loginFails: num('defense_login_alert_fails', ALERT_DEFAULTS.loginFails),
   };
+  scanner = { enabled: set['defense_scanner_enabled'] !== '0', hours: num('defense_scanner_hours', SCANNER_DEFAULTS.hours) };
+  scannerEntries = blocks.filter((b: any) => String(b.reason ?? '').startsWith('Escáner') && !(b.expires_at && Date.parse(b.expires_at) < nowMs)).length;
   telegramMuted = set['telegram_enabled'] === '0';
   if (rPurge) purgeCounts = rPurge as PurgeCounts;
   scoredVisits = rScored ? ((rScored as any).n ?? 0) : null;
@@ -366,6 +372,25 @@ const inMaintenance = level === 3;
       </form>
     </section>
 
+    <!-- Detector de escáneres -->
+    <section id="escaneres" class="card">
+      <h2>Detector de escáneres</h2>
+      <p class="muted">Este blog no es WordPress ni PHP: quien pide <code>/wp-login.php</code>, <code>/.env</code> o <code>/phpmyadmin</code> busca vulnerabilidades, no lee. La IP se <strong>marca como bot</strong> y se <strong>banea automáticamente</strong> durante el tiempo indicado. Como el resto de entradas automáticas, en niveles 0–1 solo marca; en nivel 2 recibe un 403. Solo mira la ruta: no gasta KV ni D1 por visita.</p>
+      <form data-form="scanner" class="form-grid">
+        <label class="check"><input type="checkbox" name="enabled" checked={scanner.enabled} /> Activado</label>
+        <label class="field narrow"><span>Ban (horas)</span><input name="hours" type="number" min="1" max="720" value={scanner.hours} required /></label>
+        <button class="btn primary" type="submit">Guardar</button>
+        <span class="muted small">Entradas por escáner vigentes: <strong>{scannerEntries}</strong></span>
+      </form>
+      <details class="scanner-details">
+        <summary>Qué rutas se consideran de escáner</summary>
+        <ul>
+          {SCANNER_RULE_SUMMARY.map((g) => <li><strong>{g.group}:</strong> <code>{g.examples}</code></li>)}
+        </ul>
+        <p class="muted small">Las rutas de los artículos (<code>/blog/…</code>) no se comparan con prefijos ni fragmentos: un título como «guia-wordpress» no se confunde con un escáner. Los buscadores verificados (Google, Bing, Apple) y la lista blanca están exentos.</p>
+      </details>
+    </section>
+
     <!-- Alertas de Telegram -->
     <section id="alertas" class="card">
       <h2>Alertas por Telegram</h2>
@@ -386,6 +411,7 @@ const inMaintenance = level === 3;
         <label class="field narrow"><span>Ráfaga (visitas/60 s)</span><input name="ip_per_min" type="number" min="5" max="10000" value={alerts.ipPerMin} required /></label>
         <label class="field narrow"><span>Oleada (bots/5 min)</span><input name="wave_5min" type="number" min="5" max="100000" value={alerts.wave5min} required /></label>
         <label class="field narrow"><span>Espera (min)</span><input name="cooldown_min" type="number" min="1" max="1440" value={alerts.cooldownMin} required /></label>
+        <label class="field narrow"><span>Fallos de acceso (0 = no)</span><input name="login_fails" type="number" min="0" max="50" value={alerts.loginFails} required /></label>
         <label class="check"><input type="checkbox" name="auto_escalate" checked={alerts.autoEscalate} /> Escalar solo a Vigilancia (nivel 1) al saltar una alerta</label>
         <label class="check"><input type="checkbox" name="notify_changes" checked={alerts.notifyChanges} /> Avisar de cambios de nivel hechos desde el panel</label>
         <button class="btn primary" type="submit">Guardar</button>
@@ -648,10 +674,12 @@ const inMaintenance = level === 3;
         path_pattern: fd.get('path_pattern'), max_hits: Number(fd.get('max_hits')),
         window_s: Number(fd.get('window_s')), rule_action: fd.get('action'), ban_minutes: Number(fd.get('ban_minutes') || 15),
       }, 'Regla guardada');
+    } else if (form.dataset.form === 'scanner') {
+      run('set_scanner', { enabled: fd.get('enabled') === 'on', hours: Number(fd.get('hours')) }, 'Detector de escáneres guardado');
     } else if (form.dataset.form === 'alerts') {
       run('set_alerts', {
         enabled: fd.get('enabled') === 'on', ip_per_min: Number(fd.get('ip_per_min')),
-        wave_5min: Number(fd.get('wave_5min')), cooldown_min: Number(fd.get('cooldown_min')),
+        wave_5min: Number(fd.get('wave_5min')), cooldown_min: Number(fd.get('cooldown_min')), login_fails: Number(fd.get('login_fails')),
         auto_escalate: fd.get('auto_escalate') === 'on', notify_changes: fd.get('notify_changes') === 'on',
       }, 'Alertas guardadas');
     } else if (form.dataset.form === 'autoban') {
@@ -802,6 +830,9 @@ const inMaintenance = level === 3;
   .badge-bot { font-size: 0.68rem; background: #fef3c7; color: #92400e; padding: 0.1rem 0.45rem; border-radius: 99px; font-weight: 500; }
   html[data-theme='dark'] .badge-bot { background: #451a03; color: #fcd34d; }
   .nowrap { white-space: nowrap; }
+  .scanner-details { margin-top: .4rem; font-size: .88rem; }
+  .scanner-details summary { cursor: pointer; color: var(--color-muted); }
+  .scanner-details ul { margin: .8rem 0; padding-left: 1.1rem; display: grid; gap: .45rem; line-height: 1.6; }
 
   .quota { display: grid; gap: 1rem; }
   .quota-row { display: grid; gap: .35rem; }
