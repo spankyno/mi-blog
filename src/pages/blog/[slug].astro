@@ -81,7 +81,7 @@ if (db && !isPrefetch) {
     // Detección rápida por UA (síncrona — no bloquea la respuesta)
     // Defensa: IPs de las listas (blocklist) se marcan como bot en todos los niveles.
     const defenseInfo = (Astro.locals as any).defense as { level: number; flags: string[]; watch?: string[]; lite?: boolean } | undefined;
-    const defenseFlagged = !!defenseInfo?.flags?.some((f) => f.startsWith('blocklist') || f.startsWith('rule:'));
+    const defenseFlagged = !!defenseInfo?.flags?.some((f) => f.startsWith('blocklist') || f.startsWith('rule:') || f.startsWith('scanner:'));
 
     // Modo lite (nivel ≥ 1): las visitas ya marcadas por las listas/reglas no se
     // registran (se cuentan en defense_hourly). Ahorra escrituras de D1.
