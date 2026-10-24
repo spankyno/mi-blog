@@ -14,6 +14,7 @@ import {
   MAX_BLOCK_ROWS,
   MAX_HONEYPOT_ROWS,
   MAX_RULES,
+  SCANNER_DEFAULTS,
   type DefenseLevel,
   type EntryKind,
   type EntrySource,
@@ -36,7 +37,8 @@ export interface DefenseState {
   autoBan: { enabled: boolean; hits: number; windowMin: number; hours: number };
   liteSkipLogging: boolean;
   autoPurge: boolean;
-  alerts: { enabled: boolean; ipPerMin: number; wave5min: number; cooldownMin: number; autoEscalate: boolean; notifyChanges: boolean };
+  alerts: { enabled: boolean; ipPerMin: number; wave5min: number; cooldownMin: number; autoEscalate: boolean; notifyChanges: boolean; loginFails: number };
+  scanner: { enabled: boolean; hours: number };
   /** Interruptor global de Telegram del panel (botón «Telegram ✓/✗»). */
   telegramMuted: boolean;
   loadedAt: number;
@@ -75,7 +77,8 @@ export async function loadState(db: DB): Promise<DefenseState> {
           'defense_auto_ban','defense_autoban_hits','defense_autoban_window_min','defense_autoban_hours',
           'defense_lite_skip_logging','defense_auto_purge',
           'defense_alerts_enabled','defense_alert_ip_per_min','defense_alert_wave_5min',
-          'defense_alert_cooldown_min','defense_auto_escalate','defense_notify_changes','telegram_enabled')`
+          'defense_alert_cooldown_min','defense_auto_escalate','defense_notify_changes','telegram_enabled',
+          'defense_login_alert_fails','defense_scanner_enabled','defense_scanner_hours')`
       )
       .all()
       .catch(tolerateMissingTable),
@@ -165,6 +168,11 @@ export async function loadState(db: DB): Promise<DefenseState> {
       cooldownMin: intSetting(settings['defense_alert_cooldown_min'], ALERT_DEFAULTS.cooldownMin, 1, 1440),
       autoEscalate: settings['defense_auto_escalate'] === '1',
       notifyChanges: settings['defense_notify_changes'] !== '0',
+      loginFails: intSetting(settings['defense_login_alert_fails'], ALERT_DEFAULTS.loginFails, 0, 50),
+    },
+    scanner: {
+      enabled: settings['defense_scanner_enabled'] !== '0' && SCANNER_DEFAULTS.enabled,
+      hours: intSetting(settings['defense_scanner_hours'], SCANNER_DEFAULTS.hours, 1, 720),
     },
     telegramMuted: settings['telegram_enabled'] === '0',
     liteSkipLogging: settings['defense_lite_skip_logging'] === '1',
@@ -357,6 +365,9 @@ export function defaultSettings(): Record<string, string | null> {
     defense_alert_cooldown_min: String(ALERT_DEFAULTS.cooldownMin),
     defense_auto_escalate: ALERT_DEFAULTS.autoEscalate ? '1' : '0',
     defense_notify_changes: ALERT_DEFAULTS.notifyChanges ? '1' : '0',
+    defense_login_alert_fails: String(ALERT_DEFAULTS.loginFails),
+    defense_scanner_enabled: SCANNER_DEFAULTS.enabled ? '1' : '0',
+    defense_scanner_hours: String(SCANNER_DEFAULTS.hours),
   };
 }
 

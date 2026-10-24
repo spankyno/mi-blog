@@ -9,8 +9,8 @@
 // UPDATE condicional en `settings`; solo el isolate que lo gana envía el aviso.
 // Coste: una escritura en D1 como mucho una vez por cooldown y isolate.
 // ─────────────────────────────────────────────────────────────────────────────
-import { LEVELS, type DefenseLevel } from './config';
-import { invalidateState } from './cache';
+import { ALERT_DEFAULTS, LEVELS, type DefenseLevel } from './config';
+import { getState, invalidateState } from './cache';
 import { ipv6Slash64, type ParsedIp } from './ip';
 import { hit } from './rate-limiter';
 import { getSetting, logEvent, setSetting, type DefenseState } from './store';
@@ -20,6 +20,13 @@ type DB = any;
 export type AlertKind = 'ip' | 'wave';
 
 const lastAttempt: Partial<Record<AlertKind, number>> = {};
+
+/** Solo para pruebas: olvida avisos recientes y rastros de IPs. */
+export function resetAlertMemory(): void {
+  delete lastAttempt.ip;
+  delete lastAttempt.wave;
+  trails.clear();
+}
 
 /** Unidad que se cuenta: IPv4 exacta o /64 en IPv6. */
 export function unitOf(ip: ParsedIp): string {
@@ -197,5 +204,52 @@ export async function notifyChange(env: TgEnv, db: DB, text: string): Promise<vo
     await sendMessage(env, text);
   } catch (e) {
     console.error('defense: error en notifyChange:', e);
+  }
+}
+
+
+/**
+ * Aviso de fallos de acceso al panel. Se llama tras cada intento fallido con el
+ * nº de fallos recientes de esa IP (el intento actual incluido). Solo avisa cuando
+ * ese nº alcanza EXACTAMENTE el umbral configurado: un aviso por racha, sin spam.
+ * No lleva botón de bloqueo: el panel queda fuera de la defensa; la protección real
+ * es el límite de intentos por IP de /api/panel/auth.
+ */
+export async function loginFailureAlert(a: {
+  db: DB;
+  env: TgEnv;
+  ip: string;
+  failures: number;
+  windowMin: number;
+  maxAttempts: number;
+  user?: string | null;
+  ua?: string | null;
+  geo?: { country?: string | null; asn?: number | null; org?: string | null };
+}): Promise<void> {
+  try {
+    if (!a.env.TELEGRAM_BOT_TOKEN || !a.env.TELEGRAM_CHAT_ID) return;
+
+    const state = await getState(a.db);
+    const alerts = state?.alerts ?? { enabled: true, loginFails: ALERT_DEFAULTS.loginFails };
+    if (!alerts.enabled || state?.telegramMuted) return;
+    if (alerts.loginFails <= 0 || a.failures !== alerts.loginFails) return;
+
+    const place = [a.geo?.country, a.geo?.asn ? `AS${a.geo.asn}` : null, a.geo?.org].filter(Boolean).join(' · ');
+    const lines = [
+      '🔐 <b>Fallos de acceso al panel</b>',
+      '─────────────────',
+      `🔗 IP: <code>${esc(a.ip)}</code>`,
+    ];
+    if (place) lines.push(`🌍 ${esc(place)}`);
+    lines.push(`❌ ${a.failures} intentos fallidos en ${a.windowMin} min`);
+    if (a.user) lines.push(`👤 Usuario probado: <code>${esc(a.user.slice(0, 40))}</code>`);
+    if (a.ua) lines.push(`🖥 <code>${esc(a.ua.slice(0, 120))}</code>`);
+    lines.push(`🕒 ${madridTime(Date.now())} (hora de Madrid)`);
+    lines.push(`🔒 Tras ${a.maxAttempts} fallos el acceso desde esa IP se bloquea ${a.windowMin} min.`);
+
+    await sendMessage(a.env, lines.join('\n'));
+    await logEvent(a.db, 'login_alert', a.ip, `${a.failures} fallos de acceso al panel en ${a.windowMin} min`);
+  } catch (e) {
+    console.error('defense: error enviando aviso de fallos de acceso:', e);
   }
 }

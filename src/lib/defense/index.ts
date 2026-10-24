@@ -9,16 +9,17 @@
 //  · Panel y webhook de Telegram nunca se tocan (ver isDefenseExempt).
 //  · Solo se bloquea en nivel ≥ 2. En niveles 0–1 todo se limita a marcar.
 // ─────────────────────────────────────────────────────────────────────────────
-import { getState } from './cache';
+import { getState, invalidateState } from './cache';
 import { addToList, findMatch } from './blocklist';
-import { count, maybeFlush } from './counters';
+import { count, maybeFlush, resetCounters } from './counters';
 import { forbiddenResponse, maintenanceResponse, tooManyRequestsResponse } from './maintenance';
 import { ipv6Slash64, parseIp, type ParsedIp } from './ip';
-import { hit, matchPath } from './rate-limiter';
+import { hit, matchPath, resetRateLimiter } from './rate-limiter';
 import { isVerifiedSearchCrawler } from './crawlers';
+import { matchScannerPath } from './scanner';
 import { maybeAutoPurge } from './purge';
 import { addBlock, countActiveAutoBlocks, logEvent, type DefenseState } from './store';
-import { botWave, ipBurst, sendAlert } from './alerts';
+import { botWave, ipBurst, resetAlertMemory, sendAlert } from './alerts';
 import { AUTOBAN_DEFAULTS, ENFORCEABLE_SCOPES, type DefenseInfo, type Rule } from './config';
 
 export { isDefenseExempt } from './config';
@@ -40,6 +41,20 @@ type WaitUntil = ((p: Promise<unknown>) => void) | undefined;
 const recentBans = new Map<string, number>();
 const botHits = new Map<string, number[]>();
 let lastPurgeCheck = 0;
+
+/**
+ * Solo para pruebas: devuelve a cero TODA la memoria del módulo (caché de estado,
+ * contadores, limitador, baneos recientes, avisos). En producción nunca se llama.
+ */
+export function resetDefenseMemory(): void {
+  invalidateState();
+  resetRateLimiter();
+  resetCounters();
+  resetAlertMemory();
+  recentBans.clear();
+  botHits.clear();
+  lastPurgeCheck = 0;
+}
 
 /** IPv4 exacta o /64 en IPv6: la unidad que se cuenta y se banea. */
 function subjectOf(ip: ParsedIp): { kind: 'ip' | 'cidr'; value: string } {
@@ -105,6 +120,9 @@ export async function defend({ request, locals }: Ctx): Promise<DefenseOutcome> 
     const pathname = new URL(request.url).pathname;
     const cf = runtime?.cf;
     const asn = typeof cf?.asn === 'number' ? cf.asn : null;
+    const ua = request.headers.get('user-agent');
+    /** Buscadores verificados por red (Google, Bing, Apple): exentos de reglas y de escáner. */
+    const trustedCrawler = isVerifiedSearchCrawler(ua, asn);
     const subject = {
       ip,
       asn,
@@ -157,9 +175,29 @@ export async function defend({ request, locals }: Ctx): Promise<DefenseOutcome> 
       }
     }
 
+    // 3b. Detector de escáneres: quien pide /wp-login.php, /.env… no es un lector.
+    // Se marca como bot y se banea (state.scanner.hours); el 403 solo se aplica en nivel ≥ 2,
+    // igual que cualquier otra entrada automática. Solo mira la ruta: sin consultas a D1/KV.
+    if (state.scanner.enabled && !trustedCrawler) {
+      const rule = matchScannerPath(pathname);
+      if (rule) {
+        const alreadyCounted = info.flags.length > 0; // la lista de bloqueo ya la contó como marcada
+        info.flags.push(`scanner:${rule}`);
+        if (ip) {
+          const p = banSubject(db, state, ip, state.scanner.hours * 60, `Escáner: ${pathname.slice(0, 80)} (${rule})`);
+          if (waitUntil) waitUntil(p);
+        }
+        if (state.level >= 2) {
+          count('blocked');
+          waveTick();
+          return { response: forbiddenResponse(), info };
+        }
+        if (!alreadyCounted) count('flagged'); // la oleada se cuenta al final de defend()
+      }
+    }
+
     // 4. Reglas de frecuencia («X visitas cada Y tiempo»), en memoria.
-    const ua = request.headers.get('user-agent');
-    if (state.rules.length > 0 && !isVerifiedSearchCrawler(ua, asn)) {
+    if (state.rules.length > 0 && !trustedCrawler) {
       const path = pathname;
       const ipUnit = ip ? subjectOf(ip).value : null;
       let enforce: Rule | null = null;

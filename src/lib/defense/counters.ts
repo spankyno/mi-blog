@@ -30,3 +30,9 @@ export function maybeFlush(db: any): Promise<void> | null {
     console.error('defense: error volcando contadores:', e);
   });
 }
+
+/** Solo para pruebas. */
+export function resetCounters(): void {
+  counts = { flagged: 0, limited: 0, blocked: 0, maint: 0 };
+  lastFlush = Date.now();
+}

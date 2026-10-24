@@ -136,4 +136,11 @@ export const ALERT_DEFAULTS = {
   cooldownMin: 30,    // mínimo entre alertas del mismo tipo
   autoEscalate: false, // si está en nivel 0, subir solo a nivel 1 (nunca bloquea)
   notifyChanges: true, // avisar de cambios de nivel/mantenimiento hechos desde el panel
+  loginFails: 3,      // fallos de acceso al panel (misma IP, 15 min) que disparan un aviso; 0 = no avisar
+};
+
+// ── Detector de escáneres ───────────────────────────────────────────────────
+export const SCANNER_DEFAULTS = {
+  enabled: true,
+  hours: 48, // duración del baneo automático de una IP que pide rutas de escáner
 };
