@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { loginFailureAlert } from '../../../lib/defense/alerts';
 
 const JWT_COOKIE = 'panel_token';
 const MAX_ATTEMPTS = 5;
@@ -53,12 +54,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const redirectTo = new URL(request.url).searchParams.get('redirect') ?? '/panel';
 
   // Rate limiting: máximo 5 intentos por IP en 15 minutos
+  let failuresBefore = 0;
   if (db) {
     const recent = await db.prepare(
       `SELECT COUNT(*) as n FROM login_attempts
        WHERE ip = ? AND created_at >= datetime('now', '-${BLOCK_MINUTES} minutes') AND success = 0`
     ).bind(ip).first().catch(() => null);
 
+    failuresBefore = (recent as any)?.n ?? 0;
     if ((recent as any)?.n >= MAX_ATTEMPTS) {
       return Response.redirect(new URL('/panel/login?error=too_many', request.url), 302);
     }
@@ -83,6 +86,25 @@ export const POST: APIRoute = async ({ request, locals }) => {
   }
 
   if (!valid) {
+    // Aviso por Telegram si esta IP acumula varios fallos (umbral configurable en /panel/defensa).
+    // No bloquea la respuesta: se ejecuta en segundo plano.
+    if (db && env) {
+      const cf = (locals.runtime as any)?.cf;
+      const pending = loginFailureAlert({
+        db,
+        env: env as any,
+        ip,
+        failures: failuresBefore + 1,
+        windowMin: BLOCK_MINUTES,
+        maxAttempts: MAX_ATTEMPTS,
+        user,
+        ua: request.headers.get('user-agent'),
+        geo: { country: cf?.country ?? null, asn: typeof cf?.asn === 'number' ? cf.asn : null, org: cf?.asOrganization ?? null },
+      });
+      const ctx = (locals.runtime as any)?.ctx;
+      if (ctx?.waitUntil) ctx.waitUntil(pending);
+      else await pending;
+    }
     return Response.redirect(new URL('/panel/login?error=invalid', request.url), 302);
   }
 

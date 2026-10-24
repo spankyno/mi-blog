@@ -41,7 +41,8 @@ import {
 //   set_auto_purge   { enabled }
 //   purge_now        {}
 //   reset_config     {}                          (ajustes y reglas a valores de fábrica; no toca listas)
-//   set_alerts       { enabled, ip_per_min, wave_5min, cooldown_min, auto_escalate, notify_changes }
+//   set_alerts       { enabled, ip_per_min, wave_5min, cooldown_min, auto_escalate, notify_changes, login_fails }
+//   set_scanner      { enabled, hours }
 //   telegram_test / telegram_set_webhook / telegram_webhook_info
 
 const KINDS: EntryKind[] = ['ip', 'cidr', 'asn', 'country'];
@@ -266,20 +267,32 @@ export const POST: APIRoute = async ({ request, locals }) => {
         break;
       }
 
+      case 'set_scanner': {
+        const hours = Math.floor(Number(body.hours));
+        if (!Number.isInteger(hours) || hours < 1 || hours > 720) return json({ ok: false, error: 'Duración inválida (1–720 horas)' }, 400);
+        await setSetting(db, 'defense_scanner_enabled', body.enabled ? '1' : '0');
+        await setSetting(db, 'defense_scanner_hours', String(hours));
+        await logEvent(db, 'scanner', myIp, `Detector de escáneres ${body.enabled ? 'ON' : 'OFF'}: baneo de ${hours} h`);
+        break;
+      }
+
       case 'set_alerts': {
         const ipPerMin = Math.floor(Number(body.ip_per_min));
         const wave5 = Math.floor(Number(body.wave_5min));
         const cooldown = Math.floor(Number(body.cooldown_min));
+        const loginFails = Math.floor(Number(body.login_fails ?? 3));
         if (!Number.isInteger(ipPerMin) || ipPerMin < 5 || ipPerMin > 10_000) return json({ ok: false, error: 'Umbral de ráfaga inválido (5–10000)' }, 400);
         if (!Number.isInteger(wave5) || wave5 < 5 || wave5 > 100_000) return json({ ok: false, error: 'Umbral de oleada inválido (5–100000)' }, 400);
         if (!Number.isInteger(cooldown) || cooldown < 1 || cooldown > 1440) return json({ ok: false, error: 'Cooldown inválido (1–1440 min)' }, 400);
+        if (!Number.isInteger(loginFails) || loginFails < 0 || loginFails > 50) return json({ ok: false, error: 'Fallos de acceso inválidos (0–50; 0 = no avisar)' }, 400);
         await setSetting(db, 'defense_alerts_enabled', body.enabled ? '1' : '0');
         await setSetting(db, 'defense_alert_ip_per_min', String(ipPerMin));
         await setSetting(db, 'defense_alert_wave_5min', String(wave5));
         await setSetting(db, 'defense_alert_cooldown_min', String(cooldown));
         await setSetting(db, 'defense_auto_escalate', body.auto_escalate ? '1' : '0');
         await setSetting(db, 'defense_notify_changes', body.notify_changes ? '1' : '0');
-        await logEvent(db, 'alerts', myIp, `Alertas ${body.enabled ? 'ON' : 'OFF'}: ráfaga ${ipPerMin}/min, oleada ${wave5}/5min, cooldown ${cooldown} min, auto-escalada ${body.auto_escalate ? 'sí' : 'no'}`);
+        await setSetting(db, 'defense_login_alert_fails', String(loginFails));
+        await logEvent(db, 'alerts', myIp, `Alertas ${body.enabled ? 'ON' : 'OFF'}: ráfaga ${ipPerMin}/min, oleada ${wave5}/5min, cooldown ${cooldown} min, auto-escalada ${body.auto_escalate ? 'sí' : 'no'}, aviso de acceso al panel ${loginFails > 0 ? `a los ${loginFails} fallos` : 'desactivado'}`);
         break;
       }
 
