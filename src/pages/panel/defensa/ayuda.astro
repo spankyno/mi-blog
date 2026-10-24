@@ -55,6 +55,16 @@ const guide: { situation: string; signal: string; action: string }[] = [
     action: 'Ni el mantenimiento ayuda del todo: cada petición, aunque se rechace, cuenta como invocación. Solo un dominio propio con WAF o Bot Fight Mode puede cortarlo antes de llegar al Worker.',
   },
   {
+    situation: 'Ves IPs «baneadas» con motivo «Escáner: /wp-login.php» (o similar)',
+    signal: 'En la lista de bloqueo, entradas automáticas cuyo motivo empieza por «Escáner».',
+    action: 'Es lo esperado: alguien buscó vulnerabilidades que este blog no tiene. No hace falta tocar nada; caducan solas. Si ves un falso positivo (un lector legítimo), quítala y añade su IP a la <strong>Lista blanca</strong>.',
+  },
+  {
+    situation: 'Telegram avisa de «Fallos de acceso al panel»',
+    signal: 'Varios intentos fallidos de inicio de sesión desde la misma IP.',
+    action: 'Si fuiste tú (te equivocaste de contraseña), ignóralo. Si no, el acceso desde esa IP ya se bloquea solo 15 minutos tras 5 fallos; cambia la contraseña del panel (<code>ADMIN_PASS</code>) si el aviso se repite o el usuario probado es el tuyo.',
+  },
+  {
     situation: 'Has probado muchas cosas y quieres volver a empezar',
     signal: 'Umbrales, reglas o interruptores que ya no recuerdas cómo estaban.',
     action: 'Usa <strong>Restablecer configuración</strong> (al final de la página de defensa): vuelve a los valores de fábrica sin tocar las listas de bloqueo y blanca.',
@@ -415,6 +425,49 @@ const sections: Section[] = [
     ],
   },
   {
+    id: 'escaneres',
+    title: 'Detector de escáneres',
+    intro: 'Detecta a quien pide rutas que este blog no tiene y que solo piden los buscadores de vulnerabilidades. Solo mira la ruta: <strong>no gasta KV ni D1</strong> por visita.',
+    items: [
+      {
+        name: 'Activado',
+        tag: 'Por defecto: activado',
+        what: [
+          'Si una IP pide una ruta de escáner (por ejemplo <code>/wp-login.php</code>, <code>/.env</code>, <code>/phpmyadmin</code>, <code>/.git/config</code> o cualquier cosa acabada en <code>.php</code>), la visita se <strong>marca como bot</strong> y se añade a la lista de bloqueo con motivo «Escáner: …», durante el tiempo de «Ban (horas)».',
+          'Como todas las entradas automáticas, en <strong>niveles 0–1 solo marca</strong>; en <strong>nivel 2</strong> la IP recibe un 403 (también esa misma petición).',
+          'Exentos: la lista blanca y los buscadores verificados (Google, Bing, Apple).',
+        ],
+        when: [
+          'Déjalo activado: un lector real nunca pide esas rutas.',
+          'Mira de vez en cuando la lista de bloqueo: las entradas «Escáner» te dicen de qué redes llegan los ataques.',
+        ],
+        careful: [
+          'Estas peticiones no pasan por un artículo, así que <strong>no aparecen en Visitas</strong>: quedan en la lista de bloqueo, en el Registro de eventos y en los contadores de Actividad.',
+          'Máximo 500 entradas automáticas vigentes (compartido con el auto-baneo).',
+        ],
+      },
+      {
+        name: 'Ban (horas)',
+        tag: 'Por defecto: 48',
+        what: ['Cuánto dura el baneo de una IP que pide una ruta de escáner (de 1 a 720 horas).'],
+        when: [
+          'Súbelo (por ejemplo 168 = una semana) si los mismos escáneres vuelven cada día.',
+          'Bájalo si prefieres que la lista se limpie antes.',
+        ],
+      },
+      {
+        name: 'Qué rutas se consideran de escáner',
+        what: [
+          'WordPress y otros CMS (<code>/wp-admin</code>, <code>/wp-content</code>, <code>/xmlrpc.php</code>, <code>/administrator</code>…), paneles de administración y bases de datos (<code>/phpmyadmin</code>, <code>/adminer</code>…), ficheros sensibles (<code>/.env</code>, <code>/.git</code>, <code>/.htaccess</code>, <code>/config.json</code>…), infraestructura (<code>/cgi-bin</code>, <code>/vendor/</code>, <code>/actuator</code>, <code>/server-status</code>…), volcados y copias (<code>/backup</code>, <code>/dump.sql</code>…) y lectura de ficheros del sistema (<code>/etc/passwd</code>, <code>../../</code>).',
+          'Además, cualquier ruta que acabe en <code>.php</code>, <code>.asp</code>, <code>.aspx</code>, <code>.jsp</code>, <code>.cgi</code>, <code>.env</code>, <code>.sql</code>, <code>.bak</code>, <code>.old</code> o <code>.swp</code>.',
+          'La lista completa de ejemplos está desplegable en la tarjeta del panel.',
+        ],
+        when: ['Si algún día añades al sitio una ruta que coincida con alguna de estas, avísame: habría que exceptuarla.'],
+        careful: ['Las rutas de artículos (<code>/blog/…</code>) solo se comparan por extensión: un título como «guia-wordpress» no se confunde con un escáner.'],
+      },
+    ],
+  },
+  {
     id: 'alertas',
     title: 'Alertas por Telegram',
     intro: 'Te avisan de un ataque y te dejan reaccionar desde el móvil. No hay cron: las alertas salen cuando llega tráfico.',
@@ -463,6 +516,24 @@ const sections: Section[] = [
           'Dentro de ese periodo no se avisa de otras IPs distintas: Actividad sí las muestra.',
         ],
         when: ['Baja a 10–15 si quieres más detalle durante un ataque; sube si te saturan.'],
+      },
+      {
+        name: 'Fallos de acceso (0 = no)',
+        tag: 'Por defecto: 3',
+        what: [
+          'Avisa por Telegram cuando <strong>una misma IP falla ese número de veces</strong> al iniciar sesión en el panel (dentro de la ventana de 15 minutos del límite de intentos).',
+          'Solo avisa de fallos, nunca de accesos correctos, y <strong>una vez por racha</strong>: si sigue fallando, no se repite el aviso hasta que empiece otra.',
+          'El mensaje indica IP, país y red, usuario probado (nunca la contraseña), navegador y hora de Madrid.',
+          'Con <strong>0</strong> se desactiva este aviso.',
+        ],
+        when: [
+          'Déjalo en 3: te equivocas una o dos veces sin que salte, pero un ataque de fuerza bruta sí.',
+          'Si el aviso se repite o el usuario probado es el tuyo, cambia la contraseña del panel.',
+        ],
+        careful: [
+          'Este aviso <strong>no lleva botón de bloqueo</strong>: el panel está fuera de la defensa, así que bloquear la IP no impediría seguir probando. La protección real es el límite existente: tras 5 fallos, esa IP no puede intentarlo durante 15 minutos.',
+          'Respeta «Alertas activas» y el botón «Telegram ✓/✗».',
+        ],
       },
       {
         name: 'Escalar solo a Vigilancia',
@@ -614,6 +685,7 @@ const reasons: { code: string; meaning: string; points: string }[] = [
   { code: 'whitelisted-path / whitelisted-ua', meaning: 'Excluida del análisis (ruta o User-Agent de confianza).', points: 'puntuación 0' },
   { code: 'blocklist:<origen>', meaning: 'Estaba en la lista de bloqueo (manual, auto, telegram o honeypot).', points: 'bot (100)' },
   { code: 'rule:<nombre>', meaning: 'Superó una regla de frecuencia por IP.', points: 'bot (100)' },
+  { code: 'scanner:<regla>', meaning: 'Pidió una ruta de escáner (por ejemplo /wp-login.php o algo acabado en .php).', points: 'bot (100)' },
   { code: 'watch:<nombre>', meaning: 'Superó una regla por UA, ASN o global. Solo aviso: no marca como bot.', points: 'informativo' },
 ];
 
@@ -626,6 +698,7 @@ const toc = [
   ['bloqueo', 'Listas'],
   ['reglas', 'Reglas'],
   ['autoban', 'Auto-baneo'],
+  ['escaneres', 'Escáneres'],
   ['alertas', 'Alertas'],
   ['actividad', 'Actividad'],
   ['datos', 'Datos'],
@@ -728,6 +801,8 @@ const toc = [
             <tr><td>Reglas de frecuencia</td><td>Ráfaga por IP 30/60 s en <code>/blog/*</code> con baneo de 15 min · Mismo UA 20/60 s (aviso) · Presión global 300/60 s (aviso)</td></tr>
             <tr><td>Auto-baneo</td><td>Activado · 5 visitas bot en 10 min · 24 horas</td></tr>
             <tr><td>Alertas</td><td>Ráfaga 30/60 s · Oleada 40/5 min · Espera 30 min · Escalada automática desactivada · Aviso de cambios activado</td></tr>
+            <tr><td>Detector de escáneres</td><td>Activado · baneo de 48 horas</td></tr>
+            <tr><td>Aviso de fallos de acceso al panel</td><td>A los 3 fallos de la misma IP</td></tr>
             <tr><td>Modo lite</td><td>Desactivado</td></tr>
             <tr><td>Poda automática</td><td>Desactivada</td></tr>
             <tr><td>Caché de ajustes</td><td>Hasta ~60 s de retraso en aplicarse</td></tr>
