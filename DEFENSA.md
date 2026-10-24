@@ -41,6 +41,18 @@ Reglas por defecto (migración 0003): Ráfaga por IP (30/60 s en `/blog/*`, bane
 
 Una IP (o /64) con **5 visitas clasificadas como bot en 10 minutos** (puntuación ≥ 90) recibe una entrada automática de 24 h. Todo configurable en el panel. No cuenta: bots que se declaran (Googlebot, GPTBot, ClaudeBot…), buscadores verificados, lista blanca ni IPs ya listadas. Máximo 500 entradas automáticas vigentes.
 
+## Detector de escáneres
+
+Este blog no es WordPress ni PHP, así que quien pide `/wp-login.php`, `/.env`, `/phpmyadmin` o cualquier ruta acabada en `.php` busca vulnerabilidades. En `defend()` (solo mira la ruta: **sin consultas a D1/KV**):
+
+- La visita se **marca como bot** (`scanner:<regla>`) y la IP (IPv6: su /64) entra en la lista de bloqueo con origen `auto`, motivo «Escáner: …» y **48 h** de duración (configurable de 1 a 720).
+- Como el resto de entradas automáticas, en niveles 0–1 solo marca; en **nivel 2** esa misma petición y las siguientes reciben 403.
+- Exentos: lista blanca y buscadores verificados por ASN (Google, Bing, Apple).
+- Las rutas de `/blog/…` solo se comparan por extensión peligrosa (`.php`, `.env`, `.sql`…); nunca por prefijo o fragmento, para que un título como «guia-wordpress» no se confunda con un escáner.
+- Estas peticiones no pasan por un artículo, así que **no aparecen en Visitas**: quedan en la lista de bloqueo, el Registro de eventos y los contadores de Actividad.
+- Comparte el tope de 500 entradas automáticas vigentes con el auto-baneo.
+- Lista de reglas en `src/lib/defense/scanner.ts` (`PREFIXES`, `CONTAINS`, `SUFFIXES`). Si añades al sitio una ruta que coincida con alguna, exceptúala allí.
+
 ## Alertas y control por Telegram (fase 3)
 
 Sin cron (Pages no tiene): las alertas salen del propio flujo de visitas.
@@ -56,6 +68,8 @@ Sin cron (Pages no tiene): las alertas salen del propio flujo de visitas.
 - Comando `/estado`: nivel actual, entradas de bloqueo y contadores de 24 h.
 - Opcional: **escalar solo a Vigilancia (nivel 1)** al saltar una alerta. Nunca sube a 2 ni a 3 por su cuenta.
 - Opcional: avisar por Telegram de los cambios de nivel hechos desde el panel.
+- **Contenido de la alerta de ráfaga:** IP, país y red, visitas frente al umbral, páginas más visitadas (con nº de peticiones), primera y última petición en hora de Madrid y navegador. La ráfaga cuenta peticiones a cualquier ruta (también la portada), mientras que «Visitas» solo registra artículos.
+- **Aviso de fallos de acceso al panel:** cuando una misma IP falla `defense_login_alert_fails` veces (3 por defecto; 0 lo desactiva) al iniciar sesión dentro de la ventana de 15 minutos, llega un aviso con IP, país/red, usuario probado (nunca la contraseña), navegador y hora de Madrid. Avisa **una sola vez por racha** y solo de fallos, no de accesos correctos. No lleva botón de bloqueo: el panel queda fuera de la defensa y la protección real es el límite existente de 5 fallos por IP cada 15 minutos (`/api/panel/auth`). Respeta «Alertas activas» y el botón «Telegram ✓/✗».
 - Todo texto que no es del sistema (organización de red, etc.) se escapa antes de ir al mensaje.
 
 **Webhook** `POST /api/telegram/webhook` (público, sin JWT):
@@ -85,6 +99,32 @@ Layout común `src/layouts/Panel.astro` con barra lateral (se convierte en menú
 - En **Visitas**, la etiqueta «bot» muestra al pasar el ratón la puntuación y los motivos (si existe la columna `bot_reasons`).
 - Las páginas de edición (`nuevo`, `editar`, `preview`) y `login` mantienen su diseño a pantalla completa, sin barra lateral, para no tocar el editor.
 
+## Pruebas
+
+```bash
+npm test              # todas
+npm test -- scanner   # solo las que contengan «scanner» en el nombre del fichero
+```
+
+Sin dependencias nuevas ni red: `scripts/test.mjs` compila `tests/**/*.test.ts` con esbuild y las ejecuta con `node --test`, cada fichero en su propio proceso. La D1 se simula en memoria (`tests/helpers/fake-d1.ts`) y Telegram con un `fetch` falso (`tests/helpers/telegram.ts`); si el código usa una consulta SQL que la D1 simulada no conoce, la prueba falla con «SQL no soportado».
+
+| Fichero | Qué cubre |
+|---|---|
+| `ip.test.ts` | IPv4/IPv6, CIDR, /64, listas por IP, rango, ASN y país |
+| `defend.test.ts` | Niveles 0–3, lista blanca, honeypot, mantenimiento (503, Retry-After, escapado), fallos de D1 |
+| `rules.test.ts` | Limitador, reglas por IP/UA/ASN/global, exención de Googlebot, auto-baneo |
+| `scanner.test.ts` | Rutas de escáner y legítimas (sin falsos positivos), baneo de 48 h, niveles, exenciones, IPv6 |
+| `alerts.test.ts` | Alertas de ráfaga y oleada (páginas, hora de Madrid, escapado), escalada, avisos de cambios |
+| `login-alert.test.ts` | Aviso de fallos de acceso al panel (umbral exacto, escapado, desactivación) |
+| `telegram-bot.test.ts` | Botones, doble confirmación, autorización por chat, `/estado` |
+| `reset.test.ts` | Restablecer configuración |
+
+Convención: cada prueba que toca la memoria del módulo empieza con `resetDefenseMemory()` (solo para tests). Las pruebas de punta a punta con Cloudflare real (wrangler) no están en el repo.
+
+## Restablecer configuración
+
+Botón al final de `/panel/defensa`. Devuelve ajustes (nivel 0, interruptores, umbrales de alertas y auto-baneo, detector de escáneres, aviso de fallos de acceso, mensaje de mantenimiento) y reglas (se recrean las 3 por defecto) a los valores de fábrica, en un único lote. No toca listas de bloqueo/blanca, eventos, visitas ni el botón general de Telegram.
+
 ## Retención de datos
 
 | Dato | Se conserva |
@@ -108,6 +148,7 @@ npx wrangler d1 execute mi-blog-db --remote --file=db/migrations/0002_bot_reason
 npx wrangler d1 execute mi-blog-db --remote --file=db/migrations/0003_defense_rules_seed.sql
 # Revisión: índices para que el refresco de listas no recorra tablas enteras
 npx wrangler d1 execute mi-blog-db --remote --file=db/migrations/0004_defense_indexes.sql
+# Detector de escáneres, aviso de fallos de acceso y pruebas: sin migración nueva.
 # Fase 3: sin migración nueva. Añade el secret TELEGRAM_WEBHOOK_SECRET en Cloudflare Pages,
 # despliega y pulsa «Registrar webhook» en /panel/defensa.
 git add -A && git commit -m "Defensa y rediseño del panel (fases 1-4)" && git push
