@@ -1,0 +1,57 @@
+---
+import Icon from './Icon.astro';
+import type { Delta } from '../../lib/stats';
+
+interface Props {
+  label: string;
+  value: string;
+  icon: string;
+  delta?: Delta;
+  /** Si subir es malo (bots): invierte el color de la variación. */
+  invert?: boolean;
+  /** Semáforo opcional con texto (p. ej. % de bots). */
+  badge?: { tone: 'good' | 'warn' | 'bad'; label: string };
+  wide?: boolean;
+}
+const { label, value, icon, delta, invert = false, badge, wide = false } = Astro.props;
+const tone = !delta ? 'flat'
+  : delta.dir === 'flat' || delta.dir === 'new' ? 'flat'
+  : (delta.dir === 'up') !== invert ? 'good' : 'bad';
+const dirText = delta ? ({ up: 'sube', down: 'baja', flat: 'sin cambios', new: 'nuevo' }[delta.dir]) : '';
+---
+<article class:list={['kpi', 'sk', { wide }]} aria-label={label}>
+  <div class="top">
+    <span class="ico"><Icon name={icon} size={16} /></span>
+    <h2>{label}</h2>
+    {badge && <span class={`chip ${badge.tone}`}>{badge.label}</span>}
+  </div>
+  <p class="value">{value}</p>
+  {delta && (
+    <p class={`delta ${tone}`}>
+      <Icon name={delta.dir === 'up' ? 'up' : delta.dir === 'down' ? 'down' : 'flat'} size={13} />
+      <span>{delta.label}</span>
+      <span class="sr">{dirText} respecto al periodo anterior</span>
+      <span class="vs" aria-hidden="true">vs. anterior</span>
+    </p>
+  )}
+</article>
+
+<style>
+  .kpi { background: var(--st-card); border: 1px solid var(--st-line); border-radius: 14px; padding: 1rem 1.1rem 1.05rem; display: flex; flex-direction: column; gap: 0.55rem; min-width: 0; transition: border-color .15s, transform .15s; }
+  .kpi:hover { border-color: var(--st-line-strong); }
+  .top { display: flex; align-items: center; gap: 0.5rem; }
+  .ico { display: inline-flex; width: 1.7rem; height: 1.7rem; align-items: center; justify-content: center; border-radius: 8px; background: var(--st-card-2); color: var(--st-accent-fg); flex: none; }
+  h2 { font-size: 0.8rem; font-weight: 500; color: var(--color-muted); margin: 0; flex: 1; min-width: 0; text-transform: none; letter-spacing: 0; }
+  .value { font-size: clamp(1.6rem, 2.4vw, 2rem); font-weight: 600; letter-spacing: -0.03em; line-height: 1.05; margin: 0; font-variant-numeric: tabular-nums; color: var(--color-text); }
+  .delta { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.78rem; font-weight: 500; margin: 0; font-variant-numeric: tabular-nums; }
+  .delta .vs { color: var(--color-muted); font-weight: 400; }
+  .delta.good { color: var(--st-human-fg); }
+  .delta.bad { color: var(--st-bad-fg); }
+  .delta.flat { color: var(--color-muted); }
+  .chip { font-size: 0.68rem; font-weight: 600; padding: 0.12rem 0.5rem; border-radius: 99px; }
+  .chip.good { background: var(--st-human-bg); color: var(--st-human-fg); }
+  .chip.warn { background: var(--st-bot-bg); color: var(--st-bot-fg); }
+  .chip.bad { background: var(--st-bad-bg); color: var(--st-bad-fg); }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  @media (max-width: 640px) { .wide { grid-column: 1 / -1; } }
+</style>

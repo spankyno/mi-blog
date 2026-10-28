@@ -1,0 +1,83 @@
+---
+import Icon from './Icon.astro';
+import { fmtInt } from '../../lib/stats';
+
+export interface BarItem {
+  key: string;
+  label: string;
+  /** Texto secundario bajo la etiqueta (p. ej. código de país). */
+  sub?: string;
+  prefix?: string;
+  h: number;
+  b: number;
+  /** Enlace principal (filtra la tabla). */
+  href?: string;
+  /** Enlace externo opcional (abre el post). */
+  ext?: string;
+  active?: boolean;
+}
+interface Props { id: string; title: string; subtitle?: string; items: BarItem[]; humansOnly: boolean; emptyText: string; unit: string }
+const { id, title, subtitle, items, humansOnly, emptyText, unit } = Astro.props;
+const max = Math.max(...items.map((i) => (humansOnly ? i.h : i.h + i.b)), 1);
+---
+<section class="card" id={id} aria-labelledby={`${id}-h`}>
+  <h2 id={`${id}-h`}>{title}</h2>
+  {subtitle && <p class="sub">{subtitle}</p>}
+  {items.length === 0 ? (
+    <p class="empty">{emptyText}</p>
+  ) : (
+    <ol class="list sk">
+      {items.map((it) => {
+        const total = humansOnly ? it.h : it.h + it.b;
+        const hw = (it.h / max) * 100;
+        const bw = humansOnly ? 0 : (it.b / max) * 100;
+        const Tag = it.href ? 'a' : 'div';
+        return (
+          <li class:list={['row', { active: it.active }]}>
+            <Tag class="main" href={it.href} data-nav={it.href ? '' : undefined} aria-current={it.active ? 'true' : undefined}
+              aria-label={`${it.label}: ${fmtInt(total)} ${unit}${humansOnly ? '' : ` (${fmtInt(it.h)} humanas, ${fmtInt(it.b)} bots)`}`}>
+              <span class="line">
+                {it.prefix && <span class="pre" aria-hidden="true">{it.prefix}</span>}
+                <span class="name" title={it.label}>{it.label}</span>
+                {it.sub && <span class="code">{it.sub}</span>}
+                <span class="num">{fmtInt(total)}</span>
+              </span>
+              <span class="track" aria-hidden="true">
+                <span class="fill h" style={`width:${hw}%`}></span>
+                {bw > 0 && <span class="fill b" style={`width:${bw}%`}></span>}
+              </span>
+            </Tag>
+            {it.ext && <a class="ext" href={it.ext} target="_blank" rel="noopener" aria-label={`Abrir ${it.label} en una pestaña nueva`}><Icon name="external" size={14} /></a>}
+          </li>
+        );
+      })}
+    </ol>
+  )}
+</section>
+
+<style>
+  .card { background: var(--st-card); border: 1px solid var(--st-line); border-radius: 16px; padding: 1.15rem 1.25rem 1.1rem; min-width: 0; }
+  h2 { font-size: 0.95rem; font-weight: 600; letter-spacing: -0.01em; margin: 0; text-transform: none; color: var(--color-text); }
+  .sub { margin: 0.15rem 0 0; font-size: 0.78rem; color: var(--color-muted); }
+  .list { list-style: none; margin: 0.9rem 0 0; padding: 0; display: grid; gap: 0.15rem; }
+  .row { display: flex; align-items: center; gap: 0.3rem; border-radius: 10px; }
+  .main { flex: 1; min-width: 0; display: grid; gap: 0.35rem; padding: 0.45rem 0.55rem; margin-inline: -0.55rem; border-radius: 10px; color: inherit; text-decoration: none; transition: background .15s; }
+  a.main:hover { background: var(--st-card-2); }
+  .row.active .main { background: color-mix(in srgb, var(--st-accent) 14%, transparent); }
+  .line { display: flex; align-items: baseline; gap: 0.5rem; font-size: 0.84rem; min-width: 0; }
+  .pre { font-size: 1rem; line-height: 1; }
+  .name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-text); }
+  .code { font-size: 0.72rem; color: var(--color-muted); }
+  .num { margin-left: auto; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--color-text); }
+  .track { display: flex; height: 6px; border-radius: 99px; background: var(--st-card-2); overflow: hidden; gap: 2px; }
+  .fill { display: block; height: 100%; min-width: 3px; border-radius: 99px; transform-origin: left; animation: grow .5s cubic-bezier(.2,.7,.2,1) both; }
+  .fill.h { background: var(--st-human); } .fill.b { background: var(--st-bot); }
+  .ext { display: inline-flex; padding: 0.4rem; border-radius: 8px; color: var(--color-muted); opacity: 0; transition: opacity .15s, background .15s; }
+  .row:hover .ext, .ext:focus-visible { opacity: 1; }
+  .ext:hover { background: var(--st-card-2); color: var(--color-text); }
+  .empty { margin: 1rem 0 0; font-size: 0.86rem; color: var(--color-muted); padding: 1.5rem 0; text-align: center; border: 1px dashed var(--st-line-strong); border-radius: 12px; }
+  a.main:focus-visible, .ext:focus-visible { outline: 2px solid var(--st-accent-fg); outline-offset: 1px; }
+  @keyframes grow { from { transform: scaleX(0); } }
+  @media (hover: none) { .ext { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .fill { animation: none; } }
+</style>

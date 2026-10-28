@@ -1,0 +1,91 @@
+---
+import Icon from './Icon.astro';
+import { PERIODS, statsHref, statsParams, type StatsQuery } from '../../lib/stats';
+
+interface Props { query: StatsQuery; periodLabel: string }
+const { query, periodLabel } = Astro.props;
+
+// Los formularios GET conservan el resto de filtros mediante campos ocultos.
+const hidden = (omit: string[]) => [...statsParams(query).entries()].filter(([k]) => !omit.includes(k));
+const today = new Date().toISOString().slice(0, 10);
+---
+<header class="bar">
+  <div class="row">
+    <nav class="pills" aria-label="Periodo">
+      {PERIODS.map((p) => (
+        <a href={statsHref(query, { p: p.key, from: null, to: null })} data-nav class:list={['pill', { on: query.p === p.key }]} aria-current={query.p === p.key ? 'true' : undefined}>{p.label}</a>
+      ))}
+      <details class:list={['custom', { on: query.p === 'custom' }]}>
+        <summary class="pill" aria-label="Periodo personalizado">
+          <Icon name="calendar" size={14} />
+          <span>{query.p === 'custom' ? periodLabel : 'Personalizado'}</span>
+        </summary>
+        <form method="get" action="/panel/stats" class="pop" data-nav>
+          {hidden(['p', 'from', 'to']).map(([k, v]) => <input type="hidden" name={k} value={v} />)}
+          <input type="hidden" name="p" value="custom" />
+          <label>Desde <input type="date" name="from" value={query.from ?? ''} max={today} required /></label>
+          <label>Hasta <input type="date" name="to" value={query.to ?? ''} max={today} required /></label>
+          <button type="submit" class="apply">Aplicar</button>
+        </form>
+      </details>
+    </nav>
+
+    <div class="tools">
+      <form method="get" action="/panel/stats#visitas" class="search" role="search" data-nav>
+        {hidden(['q', 'pg']).map(([k, v]) => <input type="hidden" name={k} value={v} />)}
+        <Icon name="search" size={15} />
+        <input type="search" name="q" value={query.q} placeholder="Buscar post o ciudad" aria-label="Buscar por post o ciudad en las últimas visitas" maxlength="60" />
+      </form>
+
+      <form method="get" action="/panel/stats" data-nav>
+        {hidden(['h', 'k', 'pg']).map(([k, v]) => <input type="hidden" name={k} value={v} />)}
+        <button type="submit" name="h" value={query.humans ? '0' : '1'} role="switch" aria-checked={query.humans ? 'true' : 'false'} class:list={['switch', { on: query.humans }]}>
+          <span class="track" aria-hidden="true"><span class="knob"></span></span>
+          <span>Solo humanos</span>
+        </button>
+      </form>
+    </div>
+  </div>
+  {query.humans && (
+    <p class="note" role="note">Los gráficos, rankings y la tabla excluyen bots. Las tarjetas y el reparto siguen mostrando el total para que veas la proporción real.</p>
+  )}
+</header>
+
+<style>
+  .bar { display: flex; flex-direction: column; gap: 0.6rem; }
+  .row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; }
+  .pills { display: flex; align-items: center; gap: 0.25rem; padding: 0.25rem; background: var(--st-card); border: 1px solid var(--st-line); border-radius: 12px; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .pill { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.8rem; border-radius: 9px; font-size: 0.82rem; font-weight: 500; color: var(--color-muted); text-decoration: none; white-space: nowrap; cursor: pointer; list-style: none; transition: background .15s, color .15s; }
+  .pill::-webkit-details-marker { display: none; }
+  .pill:hover { color: var(--color-text); background: var(--st-card-2); }
+  .pill.on, .custom.on > summary { background: var(--st-accent-solid); color: #fff; }
+  .custom { position: relative; }
+  .pop { position: absolute; z-index: 30; top: calc(100% + 0.5rem); right: 0; display: grid; gap: 0.6rem; padding: 0.9rem; min-width: 15rem; background: var(--st-card); border: 1px solid var(--st-line-strong); border-radius: 14px; box-shadow: 0 18px 40px -12px rgba(0,0,0,.45); }
+  .pop label { display: grid; gap: 0.25rem; font-size: 0.75rem; color: var(--color-muted); }
+  .pop input { font: inherit; font-size: 0.85rem; padding: 0.45rem 0.6rem; border-radius: 8px; border: 1px solid var(--st-line-strong); background: var(--color-bg); color: var(--color-text); color-scheme: light dark; }
+  .apply { font: inherit; font-size: 0.85rem; font-weight: 600; padding: 0.5rem; border: 0; border-radius: 8px; background: var(--st-accent-solid); color: #fff; cursor: pointer; }
+  .apply:hover { filter: brightness(1.1); }
+
+  .tools { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
+  .search { display: flex; align-items: center; gap: 0.5rem; padding: 0 0.75rem; height: 2.4rem; background: var(--st-card); border: 1px solid var(--st-line); border-radius: 12px; color: var(--color-muted); transition: border-color .15s; }
+  .search:focus-within { border-color: var(--st-accent); }
+  .search input { font: inherit; font-size: 0.85rem; border: 0; background: transparent; color: var(--color-text); width: 11rem; outline: none; }
+  .search input::placeholder { color: var(--color-muted); }
+
+  .switch { display: inline-flex; align-items: center; gap: 0.55rem; height: 2.4rem; padding: 0 0.85rem 0 0.7rem; font: inherit; font-size: 0.82rem; font-weight: 500; color: var(--color-text); background: var(--st-card); border: 1px solid var(--st-line); border-radius: 12px; cursor: pointer; transition: border-color .15s; }
+  .switch:hover { border-color: var(--st-line-strong); }
+  .track { width: 2rem; height: 1.15rem; border-radius: 99px; background: var(--st-line-strong); position: relative; transition: background .2s; flex: none; }
+  .knob { position: absolute; top: 2px; left: 2px; width: calc(1.15rem - 4px); height: calc(1.15rem - 4px); border-radius: 50%; background: #fff; transition: transform .2s; }
+  .switch.on { border-color: color-mix(in srgb, var(--st-human) 50%, transparent); }
+  .switch.on .track { background: var(--st-human-solid); }
+  .switch.on .knob { transform: translateX(0.85rem); }
+
+  .note { margin: 0; font-size: 0.78rem; color: var(--color-muted); }
+
+  .pill:focus-visible, .switch:focus-visible, .apply:focus-visible, .pop input:focus-visible { outline: 2px solid var(--st-accent-fg); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { .track, .knob, .pill, .search { transition: none; } }
+  @media (max-width: 640px) {
+    .tools { width: 100%; } .search { flex: 1; } .search input { width: 100%; }
+    .pop { right: auto; left: 0; }
+  }
+</style>

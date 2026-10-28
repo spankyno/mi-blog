@@ -80,7 +80,7 @@ Protegido por JWT. Botón de cerrar sesión incluido.
 
 - **Posts** — crear, editar, borrar, marcar como borrador, previsualizar, ordenar por título/fecha/estado
 - **Comentarios** — lista de pendientes con aprobar/rechazar/borrar, badge de pendientes en el panel
-- **Estadísticas** — visitas por post, por país, por día (7 días) y por mes (12 meses), últimas visitas
+- **Estadísticas** — dashboard con periodo (hoy / 7 / 30 / 90 días / personalizado), granularidad hora-día-semana, modo «Solo humanos», KPIs con variación frente al periodo anterior, evolución humanos vs bots, top posts y países (clic para filtrar), reparto humanos/bots, últimas visitas con filtros y paginación e insights automáticos. El estado va en la URL (`/panel/stats?p=7d&h=1…`); los gráficos son SVG generado en servidor, sin librerías nuevas
 - **Exportar** — descarga de posts, comentarios o visitas en JSON
 - Iconos SVG inline en todos los botones del panel
 
@@ -141,6 +141,7 @@ La Capa 3 usa **Cloudflare KV** (binding `RATE_LIMIT`) con `expirationTtl: 60` s
 | Archivo | Responsabilidad |
 |---|---|
 | `src/lib/bot-detector.ts` | Módulo centralizado de scoring con todas las capas |
+| `src/lib/stats.ts` · `src/lib/stats-data.ts` | Dashboard de estadísticas: lógica pura (filtros, periodos, deltas, insights; con tests) y consultas a D1 |
 | `src/lib/telegram.ts` | Notificaciones a Telegram (visitas, comentarios, contacto) |
 | `src/pages/blog/[slug].astro` | Invoca el detector y envía Telegram si es humano |
 | `src/pages/trap.ts` | Endpoint honeypot (devuelve 404, registra IP en `bot_ips`) |
@@ -225,7 +226,7 @@ npx wrangler kv namespace create RATE_LIMIT
 │   │   │   ├── login.astro  # Página de login
 │   │   │   ├── nuevo.astro  # Crear post (Toast UI Editor)
 │   │   │   ├── comentarios.astro
-│   │   │   ├── stats.astro  # Estadísticas de visitas
+│   │   │   ├── stats.astro  # Estadísticas de visitas (dashboard; piezas en components/stats/)
 │   │   │   ├── visitas.astro
 │   │   │   ├── editar/
 │   │   │   │   └── [slug].astro

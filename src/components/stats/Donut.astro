@@ -1,0 +1,64 @@
+---
+import { botLevel, fmtInt, fmtPct, pct, type Totals } from '../../lib/stats';
+interface Props { cur: Totals }
+const { cur } = Astro.props;
+const botPct = pct(cur.bots, cur.total);
+const humanPct = cur.total > 0 ? 100 - botPct : 0;
+const level = botLevel(botPct);
+// Circunferencia = 100 (r = 15.9155) → los dasharray son directamente porcentajes.
+const R = 15.9155;
+---
+<section class="card" id="calidad" aria-labelledby="donut-h">
+  <h2 id="donut-h">Humanos y bots</h2>
+  <p class="sub">Calidad del tráfico en el periodo</p>
+  {cur.total === 0 ? (
+    <p class="empty">Sin visitas en este periodo.</p>
+  ) : (
+    <>
+      <div class="wrap sk">
+        <svg viewBox="0 0 36 36" role="img" aria-label={`${fmtPct(humanPct, 1)} humanas y ${fmtPct(botPct, 1)} bots`}>
+          <circle class="ring" cx="18" cy="18" r={R} />
+          <circle class="seg h" cx="18" cy="18" r={R} stroke-dasharray={`${Math.max(humanPct - 1.2, 0)} ${100 - Math.max(humanPct - 1.2, 0)}`} stroke-dashoffset="25" />
+          <circle class="seg b" cx="18" cy="18" r={R} stroke-dasharray={`${Math.max(botPct - 1.2, 0)} ${100 - Math.max(botPct - 1.2, 0)}`} stroke-dashoffset={25 - humanPct} />
+        </svg>
+        <div class="center">
+          <strong>{fmtPct(botPct)}</strong>
+          <span>son bots</span>
+        </div>
+      </div>
+      <ul class="legend">
+        <li><span class="sw h"></span><span class="l">Humanas</span><strong>{fmtInt(cur.humans)}</strong><span class="p">{fmtPct(humanPct, 1)}</span></li>
+        <li><span class="sw b"></span><span class="l">Bots</span><strong>{fmtInt(cur.bots)}</strong><span class="p">{fmtPct(botPct, 1)}</span></li>
+      </ul>
+      <p class={`verdict ${level.tone}`}>Nivel de bots: {level.label.toLowerCase()}</p>
+    </>
+  )}
+</section>
+
+<style>
+  .card { background: var(--st-card); border: 1px solid var(--st-line); border-radius: 16px; padding: 1.15rem 1.25rem 1.1rem; min-width: 0; display: flex; flex-direction: column; }
+  h2 { font-size: 0.95rem; font-weight: 600; letter-spacing: -0.01em; margin: 0; text-transform: none; color: var(--color-text); }
+  .sub { margin: 0.15rem 0 0; font-size: 0.78rem; color: var(--color-muted); }
+  .wrap { position: relative; width: min(100%, 13rem); aspect-ratio: 1; margin: 0.9rem auto 0.8rem; }
+  svg { width: 100%; height: 100%; transform: rotate(0deg); }
+  .ring, .seg { fill: none; stroke-width: 3.6; }
+  .ring { stroke: var(--st-card-2); }
+  .seg { animation: draw .7s cubic-bezier(.2,.7,.2,1) both; }
+  .seg.h { stroke: var(--st-human); } .seg.b { stroke: var(--st-bot); }
+  .center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; }
+  .center strong { font-size: 2rem; font-weight: 600; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; color: var(--color-text); }
+  .center span { font-size: 0.75rem; color: var(--color-muted); margin-top: 0.15rem; }
+  .legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; font-size: 0.84rem; }
+  .legend li { display: flex; align-items: center; gap: 0.5rem; font-variant-numeric: tabular-nums; }
+  .legend .l { flex: 1; color: var(--color-muted); }
+  .legend .p { width: 3.6rem; text-align: right; color: var(--color-muted); }
+  .sw { width: 0.65rem; height: 0.65rem; border-radius: 3px; flex: none; }
+  .sw.h { background: var(--st-human); } .sw.b { background: var(--st-bot); }
+  .verdict { margin: 0.85rem 0 0; padding: 0.45rem 0.7rem; border-radius: 10px; font-size: 0.78rem; font-weight: 500; text-align: center; }
+  .verdict.good { background: var(--st-human-bg); color: var(--st-human-fg); }
+  .verdict.warn { background: var(--st-bot-bg); color: var(--st-bot-fg); }
+  .verdict.bad { background: var(--st-bad-bg); color: var(--st-bad-fg); }
+  .empty { margin: 1rem 0 0; font-size: 0.86rem; color: var(--color-muted); padding: 2.5rem 0; text-align: center; border: 1px dashed var(--st-line-strong); border-radius: 12px; }
+  @keyframes draw { from { stroke-dasharray: 0 100; } }
+  @media (prefers-reduced-motion: reduce) { .seg { animation: none; } }
+</style>

@@ -1,0 +1,143 @@
+---
+import Icon from './Icon.astro';
+import { PAGE_SIZE, countryName, fmtInt, flagEmoji, relTime, simplifyUA, statsHref, type StatsQuery } from '../../lib/stats';
+import type { VisitRow } from '../../lib/stats-data';
+
+interface Props {
+  query: StatsQuery;
+  rows: VisitRow[];
+  total: number;
+  page: number;
+  pages: number;
+  titles: Record<string, string>;
+}
+const { query, rows, total, page, pages, titles } = Astro.props;
+const now = new Date();
+const H = '#visitas';
+const hasFilter = !!(query.post || query.country || query.q || (!query.humans && query.kind !== 'all'));
+const KINDS: { key: 'all' | 'human' | 'bot'; label: string }[] = [{ key: 'all', label: 'Todas' }, { key: 'human', label: 'Humanas' }, { key: 'bot', label: 'Bots' }];
+const first = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+const last = Math.min(page * PAGE_SIZE, total);
+const chips = [
+  query.post && { label: titles[query.post] ?? query.post, href: statsHref(query, { post: '' }, H), what: 'post' },
+  query.country && { label: `${flagEmoji(query.country)} ${countryName(query.country)}`, href: statsHref(query, { country: '' }, H), what: 'país' },
+  query.q && { label: `“${query.q}”`, href: statsHref(query, { q: '' }, H), what: 'búsqueda' },
+].filter(Boolean) as { label: string; href: string; what: string }[];
+---
+<section class="card" id="visitas" aria-labelledby="visits-h">
+  <div class="head">
+    <div>
+      <h2 id="visits-h">Últimas visitas</h2>
+      <p class="sub" aria-live="polite">{total === 0 ? 'Sin resultados' : `${fmtInt(first)}–${fmtInt(last)} de ${fmtInt(total)}`}</p>
+    </div>
+    {!query.humans && (
+      <nav class="seg" aria-label="Tipo de visita">
+        {KINDS.map((k) => <a href={statsHref(query, { kind: k.key }, H)} data-nav class:list={['opt', { on: query.kind === k.key }]} aria-current={query.kind === k.key ? 'true' : undefined}>{k.label}</a>)}
+      </nav>
+    )}
+    <a class="more" href="/panel/visitas">Vista detallada con IP y referer</a>
+  </div>
+
+  {chips.length > 0 && (
+    <ul class="chips" aria-label="Filtros activos">
+      {chips.map((c) => <li><a href={c.href} data-nav aria-label={`Quitar filtro de ${c.what}: ${c.label}`}><span>{c.label}</span><Icon name="x" size={13} /></a></li>)}
+    </ul>
+  )}
+
+  {rows.length === 0 ? (
+    <div class="empty">
+      <Icon name="inbox" size={22} />
+      <p>{hasFilter ? 'Ninguna visita coincide con estos filtros.' : 'Todavía no hay visitas en este periodo.'}</p>
+      {hasFilter && <a class="btn" href={statsHref(query, { post: '', country: '', q: '', kind: 'all' }, H)} data-nav>Quitar filtros</a>}
+    </div>
+  ) : (
+    <>
+      <div class="wrap sk">
+        <table>
+          <caption class="sr">Últimas visitas registradas</caption>
+          <thead><tr><th scope="col">Post</th><th scope="col">Ubicación</th><th scope="col">Cuándo</th><th scope="col">Tipo</th><th scope="col" class="ua-col">Navegador</th></tr></thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr>
+                <td class="post"><a href={`/blog/${r.slug}`} target="_blank" rel="noopener" title={r.slug}>{titles[r.slug] ?? r.slug}</a></td>
+                <td class="loc"><span aria-hidden="true">{flagEmoji(r.country)}</span> {countryName(r.country)}{r.city && <span class="city">, {r.city}</span>}</td>
+                <td class="when"><time datetime={r.viewed_at} data-utc={r.viewed_at} title={r.viewed_at}>{relTime(r.viewed_at, now)}</time></td>
+                <td><span class:list={['badge', r.is_bot ? 'bot' : 'human']}>{r.is_bot ? 'Bot' : 'Humano'}</span></td>
+                <td class="ua-col ua" title={r.user_agent ?? ''}>{simplifyUA(r.user_agent)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {pages > 1 && (
+        <nav class="pager" aria-label="Paginación de visitas">
+          {page > 1 ? <a class="pg" href={statsHref(query, { page: page - 1 }, H)} data-nav rel="prev"><Icon name="left" size={15} />Anterior</a> : <span class="pg off" aria-disabled="true"><Icon name="left" size={15} />Anterior</span>}
+          <span class="of">Página {page} de {pages}</span>
+          {page < pages ? <a class="pg" href={statsHref(query, { page: page + 1 }, H)} data-nav rel="next">Siguiente<Icon name="right" size={15} /></a> : <span class="pg off" aria-disabled="true">Siguiente<Icon name="right" size={15} /></span>}
+        </nav>
+      )}
+    </>
+  )}
+</section>
+
+<script>
+  // La fecha relativa se calcula en el servidor; aquí solo se añade la hora local en el tooltip.
+  const f = new Intl.DateTimeFormat('es-ES', { dateStyle: 'medium', timeStyle: 'short' });
+  document.querySelectorAll<HTMLTimeElement>('time[data-utc]').forEach((t) => {
+    const d = new Date(t.dataset.utc || '');
+    if (!Number.isNaN(d.getTime())) t.title = f.format(d);
+  });
+</script>
+
+<style>
+  .card { background: var(--st-card); border: 1px solid var(--st-line); border-radius: 16px; padding: 1.15rem 1.25rem; min-width: 0; scroll-margin-top: 1rem; }
+  .head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1rem; margin-bottom: 0.9rem; }
+  .head > div:first-child { flex: 1; min-width: 9rem; }
+  h2 { font-size: 0.95rem; font-weight: 600; letter-spacing: -0.01em; margin: 0; text-transform: none; color: var(--color-text); }
+  .sub { margin: 0.15rem 0 0; font-size: 0.78rem; color: var(--color-muted); font-variant-numeric: tabular-nums; }
+  .seg { display: inline-flex; padding: 0.2rem; gap: 0.1rem; background: var(--st-card-2); border-radius: 10px; }
+  .opt { padding: 0.25rem 0.7rem; font-size: 0.78rem; font-weight: 500; border-radius: 7px; color: var(--color-muted); text-decoration: none; }
+  .opt:hover { color: var(--color-text); }
+  .opt.on { background: var(--st-card); color: var(--color-text); box-shadow: 0 0 0 1px var(--st-line-strong); }
+  .more { font-size: 0.78rem; color: var(--st-accent-fg); text-decoration: none; }
+  .more:hover { text-decoration: underline; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 0.4rem; list-style: none; margin: 0 0 0.8rem; padding: 0; }
+  .chips a { display: inline-flex; align-items: center; gap: 0.4rem; max-width: 16rem; padding: 0.25rem 0.5rem 0.25rem 0.7rem; border-radius: 99px; font-size: 0.78rem; text-decoration: none; color: var(--st-accent-fg); background: color-mix(in srgb, var(--st-accent) 14%, transparent); border: 1px solid color-mix(in srgb, var(--st-accent) 35%, transparent); }
+  .chips a span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chips a:hover { background: color-mix(in srgb, var(--st-accent) 22%, transparent); }
+
+  .wrap { overflow-x: auto; margin-inline: -0.25rem; padding-inline: 0.25rem; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.84rem; min-width: 34rem; }
+  thead th { text-align: left; font-size: 0.74rem; font-weight: 500; color: var(--color-muted); padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--st-line); white-space: nowrap; text-transform: none; letter-spacing: 0; }
+  td { padding: 0.7rem 0.75rem; border-bottom: 1px solid var(--st-line); vertical-align: middle; }
+  tbody tr { transition: background .12s; }
+  tbody tr:hover { background: var(--st-card-2); }
+  tbody tr:last-child td { border-bottom: 0; }
+  .post { max-width: 22rem; }
+  .post a { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-text); text-decoration: none; font-weight: 500; }
+  .post a:hover { color: var(--st-accent-fg); text-decoration: underline; }
+  .loc { white-space: nowrap; }
+  .city { color: var(--color-muted); }
+  .when { white-space: nowrap; color: var(--color-muted); font-variant-numeric: tabular-nums; }
+  .ua { color: var(--color-muted); white-space: nowrap; max-width: 12rem; overflow: hidden; text-overflow: ellipsis; }
+  .badge { display: inline-block; font-size: 0.72rem; font-weight: 600; padding: 0.15rem 0.55rem; border-radius: 99px; }
+  .badge.human { background: var(--st-human-bg); color: var(--st-human-fg); }
+  .badge.bot { background: var(--st-bot-bg); color: var(--st-bot-fg); }
+
+  .pager { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 0.9rem; font-size: 0.82rem; }
+  .of { color: var(--color-muted); font-variant-numeric: tabular-nums; }
+  .pg { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.4rem 0.8rem; border-radius: 10px; border: 1px solid var(--st-line-strong); color: var(--color-text); text-decoration: none; font-weight: 500; transition: background .15s; }
+  a.pg:hover { background: var(--st-card-2); }
+  .pg.off { opacity: .4; }
+
+  .empty { display: grid; justify-items: center; gap: 0.5rem; padding: 2.5rem 1rem; color: var(--color-muted); text-align: center; border: 1px dashed var(--st-line-strong); border-radius: 12px; }
+  .empty p { margin: 0; font-size: 0.88rem; }
+  .btn { margin-top: 0.3rem; padding: 0.45rem 0.9rem; border-radius: 10px; background: var(--st-accent-solid); color: #fff; text-decoration: none; font-size: 0.82rem; font-weight: 600; }
+  .btn:hover { filter: brightness(1.1); }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  a:focus-visible { outline: 2px solid var(--st-accent-fg); outline-offset: 2px; border-radius: 6px; }
+  @media (max-width: 900px) { .ua-col { display: none; } table { min-width: 28rem; } }
+  @media (max-width: 640px) { .card { padding: 1rem; } .post { max-width: 11rem; } }
+</style>

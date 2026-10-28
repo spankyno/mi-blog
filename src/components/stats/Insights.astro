@@ -1,0 +1,39 @@
+---
+import Icon from './Icon.astro';
+import type { Insight } from '../../lib/stats';
+interface Props { items: Insight[] }
+const { items } = Astro.props;
+const label = { good: 'Positivo', warn: 'Atención', info: 'Dato' } as const;
+---
+<section class="card" id="insights" aria-labelledby="ins-h">
+  <div class="head">
+    <span class="ico"><Icon name="sparkles" size={16} /></span>
+    <h2 id="ins-h">Insights</h2>
+  </div>
+  {items.length === 0 ? (
+    <p class="empty">Aparecerán cuando haya visitas en el periodo.</p>
+  ) : (
+    <ul class="list sk">
+      {items.map((i) => (
+        <li class={i.tone}>
+          <span class="bar" aria-hidden="true"></span>
+          <p><span class="sr">{label[i.tone]}: </span>{i.text}</p>
+        </li>
+      ))}
+    </ul>
+  )}
+</section>
+
+<style>
+  .card { background: var(--st-card); border: 1px solid var(--st-line); border-radius: 16px; padding: 1.15rem 1.25rem; min-width: 0; height: 100%; background-image: radial-gradient(120% 60% at 100% 0%, color-mix(in srgb, var(--st-accent) 12%, transparent), transparent 60%); }
+  .head { display: flex; align-items: center; gap: 0.55rem; margin-bottom: 0.9rem; }
+  .ico { display: inline-flex; width: 1.7rem; height: 1.7rem; align-items: center; justify-content: center; border-radius: 8px; background: color-mix(in srgb, var(--st-accent) 18%, transparent); color: var(--st-accent-fg); }
+  h2 { font-size: 0.95rem; font-weight: 600; letter-spacing: -0.01em; margin: 0; text-transform: none; color: var(--color-text); }
+  .list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.75rem; }
+  li { display: flex; gap: 0.7rem; }
+  .bar { width: 3px; border-radius: 99px; flex: none; background: var(--st-line-strong); }
+  li.good .bar { background: var(--st-human); } li.warn .bar { background: var(--st-bot); }
+  p { margin: 0; font-size: 0.86rem; line-height: 1.5; color: var(--color-text); }
+  .empty { color: var(--color-muted); font-size: 0.86rem; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+</style>

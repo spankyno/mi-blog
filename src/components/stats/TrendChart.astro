@@ -1,0 +1,208 @@
+---
+import { areaPath, fmtInt, linePath, niceMax, statsHref, tickIndexes, toPoints, type Granularity, type SeriesPoint, type StatsQuery } from '../../lib/stats';
+
+interface Props {
+  points: SeriesPoint[];
+  query: StatsQuery;
+  granularity: Granularity;
+  allowed: Record<Granularity, boolean>;
+  periodLabel: string;
+}
+const { points, query, granularity, allowed, periodLabel } = Astro.props;
+
+const W = 1000;
+const H = 300;
+const humansOnly = query.humans;
+const max = niceMax(Math.max(...points.map((p) => (humansOnly ? p.h : Math.max(p.h, p.b))), 0));
+const hPts = toPoints(points.map((p) => p.h), max, W, H);
+const bPts = humansOnly ? [] : toPoints(points.map((p) => p.b), max, W, H);
+const hasData = points.some((p) => p.h > 0 || p.b > 0);
+const yTicks = [0, 1, 2, 3, 4].map((i) => ({ v: (max / 4) * (4 - i), pos: (i / 4) * 100 }));
+const xTicks = tickIndexes(points.length).map((i) => ({ label: points[i].short, pos: points.length > 1 ? (i / (points.length - 1)) * 100 : 50, i }));
+const GRAN: { key: Granularity; label: string }[] = [{ key: 'hour', label: 'Hora' }, { key: 'day', label: 'Día' }, { key: 'week', label: 'Semana' }];
+const subtitle = `${periodLabel} · por ${{ hour: 'hora (UTC)', day: 'día', week: 'semana' }[granularity]}`;
+const summary = hasData
+  ? `Visitas humanas${humansOnly ? '' : ' y de bots'} ${periodLabel.toLowerCase()}, agrupadas por ${{ hour: 'hora', day: 'día', week: 'semana' }[granularity]}.`
+  : 'Sin visitas en este periodo.';
+---
+<section class="card" id="evolucion" aria-labelledby="trend-h">
+  <div class="head">
+    <div>
+      <h2 id="trend-h">Visitas en el tiempo</h2>
+      <p class="sub">{subtitle}</p>
+    </div>
+    <ul class="legend" aria-label="Leyenda">
+      <li><span class="sw h"></span>Humanas</li>
+      {!humansOnly && <li><span class="sw b"></span>Bots</li>}
+    </ul>
+    <nav class="seg" aria-label="Granularidad">
+      {GRAN.map((g) => allowed[g.key]
+        ? <a href={statsHref(query, { g: g.key })} data-nav class:list={['opt', { on: g.key === granularity }]} aria-current={g.key === granularity ? 'true' : undefined}>{g.label}</a>
+        : <span class="opt off" aria-disabled="true" title="No disponible para este periodo">{g.label}</span>)}
+    </nav>
+  </div>
+
+  {!hasData ? (
+    <div class="empty"><p>No hay visitas{humansOnly ? ' humanas' : ''} en este periodo.</p></div>
+  ) : (
+    <div class="chart sk" data-trend data-points={JSON.stringify(points.map((p) => ({ l: p.long, h: p.h, b: p.b })))} data-max={max} data-humans-only={humansOnly ? '1' : '0'}>
+      <div class="ylabels" aria-hidden="true">
+        {yTicks.map((t) => <span style={`top:${t.pos}%`}>{fmtInt(t.v)}</span>)}
+      </div>
+      <div class="plot" tabindex="0" role="group" aria-label={`${summary} Usa las flechas izquierda y derecha para recorrer los datos.`}>
+        <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true" focusable="false">
+          <defs>
+            <linearGradient id="gH" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="s-h" stop-opacity="0.28" /><stop offset="1" class="s-h" stop-opacity="0" /></linearGradient>
+            <linearGradient id="gB" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="s-b" stop-opacity="0.22" /><stop offset="1" class="s-b" stop-opacity="0" /></linearGradient>
+          </defs>
+          {yTicks.map((t) => <path class="grid" d={`M0 ${(t.pos / 100) * H}H${W}`} />)}
+          {!humansOnly && <path d={areaPath(bPts, H)} fill="url(#gB)" />}
+          {!humansOnly && <path class="ln b" d={linePath(bPts)} />}
+          <path d={areaPath(hPts, H)} fill="url(#gH)" />
+          <path class="ln h" d={linePath(hPts)} />
+        </svg>
+        <div class="cursor" hidden>
+          <span class="vline"></span>
+          <span class="pt h"></span>
+          {!humansOnly && <span class="pt b"></span>}
+        </div>
+        <div class="tip" hidden role="presentation"></div>
+      </div>
+      <div class="xlabels" aria-hidden="true">
+        {xTicks.map((t, k) => <span class:list={{ first: k === 0, last: k === xTicks.length - 1 }} style={`left:${t.pos}%`}>{t.label}</span>)}
+      </div>
+      <p class="sr" aria-live="polite" data-live></p>
+    </div>
+  )}
+
+  <table class="sr">
+    <caption>{summary}</caption>
+    <thead><tr><th scope="col">Periodo</th><th scope="col">Humanas</th>{!humansOnly && <th scope="col">Bots</th>}</tr></thead>
+    <tbody>
+      {points.map((p) => <tr><th scope="row">{p.long}</th><td>{p.h}</td>{!humansOnly && <td>{p.b}</td>}</tr>)}
+    </tbody>
+  </table>
+</section>
+
+<script>
+  const nf = new Intl.NumberFormat('es-ES');
+
+  function init(root: HTMLElement) {
+    const pts: { l: string; h: number; b: number }[] = JSON.parse(root.dataset.points || '[]');
+    const max = Number(root.dataset.max) || 1;
+    const humansOnly = root.dataset.humansOnly === '1';
+    const plot = root.querySelector<HTMLElement>('.plot')!;
+    const cursor = root.querySelector<HTMLElement>('.cursor')!;
+    const tip = root.querySelector<HTMLElement>('.tip')!;
+    const live = root.querySelector<HTMLElement>('[data-live]')!;
+    const ptH = cursor.querySelector<HTMLElement>('.pt.h')!;
+    const ptB = cursor.querySelector<HTMLElement>('.pt.b');
+    const n = pts.length;
+    let idx = -1;
+
+    function row(cls: string, label: string, value: number, total?: number) {
+      const r = document.createElement('div');
+      r.className = 'tr';
+      const sw = document.createElement('span');
+      sw.className = `sw ${cls}`;
+      const l = document.createElement('span');
+      l.className = 'tl';
+      l.textContent = label;
+      const v = document.createElement('strong');
+      v.textContent = nf.format(value) + (total && total > 0 && cls !== 't' ? ` · ${Math.round((value / total) * 100)}%` : '');
+      r.append(sw, l, v);
+      return r;
+    }
+
+    function show(i: number, announce = false) {
+      idx = Math.max(0, Math.min(n - 1, i));
+      const p = pts[idx];
+      const x = n === 1 ? 0.5 : idx / (n - 1);
+      cursor.hidden = false;
+      tip.hidden = false;
+      cursor.style.left = `${x * 100}%`;
+      ptH.style.bottom = `${(p.h / max) * 100}%`;
+      if (ptB) ptB.style.bottom = `${(p.b / max) * 100}%`;
+
+      const title = document.createElement('div');
+      title.className = 'tt';
+      title.textContent = p.l;
+      const total = p.h + p.b;
+      tip.replaceChildren(title, row('h', 'Humanas', p.h, total));
+      if (!humansOnly) tip.append(row('b', 'Bots', p.b, total), row('t', 'Total', total));
+      tip.classList.toggle('flip', x > 0.6);
+      tip.style.left = `${x * 100}%`;
+      if (announce) live.textContent = `${p.l}: ${p.h} humanas${humansOnly ? '' : `, ${p.b} bots`}`;
+    }
+    function hide() { idx = -1; cursor.hidden = true; tip.hidden = true; }
+
+    plot.addEventListener('pointermove', (e) => {
+      const r = plot.getBoundingClientRect();
+      const ratio = Math.min(Math.max((e.clientX - r.left) / r.width, 0), 1);
+      show(n === 1 ? 0 : Math.round(ratio * (n - 1)));
+    });
+    plot.addEventListener('pointerleave', () => { if (document.activeElement !== plot) hide(); });
+    plot.addEventListener('blur', hide);
+    plot.addEventListener('focus', () => { if (idx < 0) show(n - 1, true); });
+    plot.addEventListener('keydown', (e) => {
+      const k = e.key;
+      if (k === 'ArrowRight') show((idx < 0 ? -1 : idx) + 1, true);
+      else if (k === 'ArrowLeft') show((idx < 0 ? n : idx) - 1, true);
+      else if (k === 'Home') show(0, true);
+      else if (k === 'End') show(n - 1, true);
+      else if (k === 'Escape') hide();
+      else return;
+      e.preventDefault();
+    });
+  }
+  document.querySelectorAll<HTMLElement>('[data-trend]').forEach(init);
+</script>
+
+<style>
+  .card { background: var(--st-card); border: 1px solid var(--st-line); border-radius: 16px; padding: 1.15rem 1.25rem 1.2rem; min-width: 0; height: 100%; display: flex; flex-direction: column; }
+  .head { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.6rem 1rem; margin-bottom: 1rem; }
+  .head > div:first-child { flex: 1; min-width: 10rem; }
+  h2 { font-size: 0.95rem; font-weight: 600; letter-spacing: -0.01em; margin: 0; text-transform: none; color: var(--color-text); }
+  .sub { margin: 0.15rem 0 0; font-size: 0.78rem; color: var(--color-muted); }
+  .legend { display: flex; gap: 0.9rem; list-style: none; margin: 0.15rem 0 0; padding: 0; font-size: 0.78rem; color: var(--color-muted); }
+  .legend li { display: inline-flex; align-items: center; gap: 0.4rem; }
+  .sw { width: 0.6rem; height: 0.6rem; border-radius: 3px; display: inline-block; flex: none; }
+  .sw.h { background: var(--st-human); } .sw.b { background: var(--st-bot); } .sw.t { background: var(--color-muted); opacity: .6; }
+  .seg { display: inline-flex; padding: 0.2rem; gap: 0.1rem; background: var(--st-card-2); border-radius: 10px; }
+  .opt { padding: 0.25rem 0.65rem; font-size: 0.78rem; font-weight: 500; border-radius: 7px; color: var(--color-muted); text-decoration: none; }
+  a.opt:hover { color: var(--color-text); }
+  .opt.on { background: var(--st-card); color: var(--color-text); box-shadow: 0 0 0 1px var(--st-line-strong); }
+  .opt.off { opacity: .4; cursor: not-allowed; }
+
+  .chart { position: relative; display: grid; grid-template-columns: 2.75rem 1fr; grid-template-rows: 15rem auto; column-gap: 0.4rem; margin-block: 0.4rem 0; flex: 1; }
+  .ylabels { position: relative; font-size: 0.7rem; color: var(--color-muted); font-variant-numeric: tabular-nums; text-align: right; }
+  .ylabels span { position: absolute; right: 0; transform: translateY(-50%); }
+  .plot { position: relative; border-radius: 6px; cursor: crosshair; touch-action: pan-y; outline-offset: 4px; }
+  .plot:focus-visible { outline: 2px solid var(--st-accent-fg); }
+  svg { width: 100%; height: 100%; display: block; overflow: visible; }
+  .grid { stroke: var(--st-line); stroke-width: 1; vector-effect: non-scaling-stroke; stroke-dasharray: 3 4; fill: none; }
+  .ln { fill: none; stroke-width: 2.25; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+  .ln.h { stroke: var(--st-human); } .ln.b { stroke: var(--st-bot); }
+  .s-h { stop-color: var(--st-human); } .s-b { stop-color: var(--st-bot); }
+
+  .cursor { position: absolute; top: 0; bottom: 0; width: 0; pointer-events: none; }
+  .vline { position: absolute; top: 0; bottom: 0; left: 0; width: 1px; background: var(--st-line-strong); }
+  .pt { position: absolute; left: 0; width: 0.7rem; height: 0.7rem; border-radius: 50%; transform: translate(-50%, 50%); border: 2px solid var(--st-card); }
+  .pt.h { background: var(--st-human); } .pt.b { background: var(--st-bot); }
+  .tip { position: absolute; top: 0.25rem; z-index: 5; min-width: 11.5rem; padding: 0.6rem 0.7rem; margin-left: 0.9rem; background: color-mix(in srgb, var(--st-card-2) 92%, transparent); backdrop-filter: blur(8px); border: 1px solid var(--st-line-strong); border-radius: 12px; box-shadow: 0 14px 30px -10px rgba(0,0,0,.5); pointer-events: none; font-size: 0.78rem; }
+  .tip.flip { transform: translateX(-100%); margin-left: -0.9rem; }
+  .tip :global(.tt) { font-weight: 600; margin-bottom: 0.4rem; color: var(--color-text); }
+  .tip :global(.tr) { display: flex; align-items: center; gap: 0.45rem; padding: 0.1rem 0; font-variant-numeric: tabular-nums; }
+  .tip :global(.tl) { flex: 1; color: var(--color-muted); }
+  .tip :global(.sw) { width: 0.55rem; height: 0.55rem; border-radius: 3px; }
+  .tip :global(.sw.h) { background: var(--st-human); } .tip :global(.sw.b) { background: var(--st-bot); } .tip :global(.sw.t) { background: var(--color-muted); opacity: .6; }
+
+  .xlabels { grid-column: 2; position: relative; height: 1.5rem; margin-top: 0.45rem; font-size: 0.7rem; color: var(--color-muted); }
+  .xlabels span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+  .xlabels .first { transform: none; } .xlabels .last { transform: translateX(-100%); }
+
+  .empty { flex: 1; display: grid; place-items: center; min-height: 12rem; color: var(--color-muted); font-size: 0.88rem; border: 1px dashed var(--st-line-strong); border-radius: 12px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  a.opt:focus-visible { outline: 2px solid var(--st-accent-fg); outline-offset: 1px; }
+  @media (max-width: 640px) { .xlabels span:nth-child(even):not(.last) { display: none; } .chart { grid-template-rows: 12rem auto; grid-template-columns: 2.25rem 1fr; } .card { padding: 1rem; } }
+</style>
