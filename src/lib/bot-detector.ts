@@ -33,10 +33,10 @@ const WHITELISTED_UA = /stripe\/|vercel|supabase|uptime|kuma|statuscake|pingdom/
 // por User-Agent (arriba) ya cubre a los monitores de uptime legítimos.
 
 // ── Detección de Datacenters / Hosting ──────────────────────────────────────
-const HOSTING_ORGS = /amazon|aws|google\s+cloud|google\s+llc|microsoft\s+corporation|azure|hetzner|ovh|digitalocean|linode|leaseweb|contabo|scaleway|oracle|choopa|vultr|colocrossing|m247|limestone|hostinger|datacenter|hosting|cloud\s+vps|server/i;
+const HOSTING_ORGS = /amazon|aws|google\s+cloud|google\s+llc|microsoft\s+corporation|azure|hetzner|ovh|digitalocean|linode|leaseweb|contabo|scaleway|oracle|choopa|vultr|colocrossing|m247|limestone|hostinger|datacenter|hosting|cloud\s+vps|server|facebook|meta\s+platforms|meta/i;
 
 // ── Capa 2A: Bots conocidos que se auto-identifican (score +90) ─────────────
-const KNOWN_BOTS = /googlebot|google-inspectiontool|bingbot|slurp|duckduckbot|baiduspider|yandexbot|sogou|exabot|exasearchbot|reflectionbot|facebot|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|mediapartners-google|adsbot-google|petalbot|bytespider|gptbot|chatgpt-user|claudebot|claude-web|anthropic-ai|cohere-ai|perplexitybot|meta-externalagent|ia_archiver|semrush|ahrefs|mj12bot|dotbot|rogerbot|screaming\.frog/i;
+const KNOWN_BOTS = /googlebot|google-inspectiontool|bingbot|slurp|duckduckbot|baiduspider|yandexbot|sogou|exabot|exasearchbot|reflectionbot|facebot|facebookexternalhit|meta-webindexer|meta-externalagent|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|mediapartners-google|adsbot-google|petalbot|bytespider|gptbot|chatgpt-user|claudebot|claude-web|anthropic-ai|cohere-ai|perplexitybot|ia_archiver|semrush|ahrefs|mj12bot|dotbot|rogerbot|screaming\.frog|amazonbot/i;
 
 // ── Capa 2B: Herramientas de scraping / escáneres de seguridad (score +60) ──
 const SCRAPER_UA = /curl|wget|python-requests|python-urllib|aiohttp|scrapy|go-http-client|node-fetch|axios|java\/|libwww-perl|php\/|ruby|mechanize|httpclient|okhttp|headless|phantomjs|selenium|puppeteer|playwright|openvas/i;
